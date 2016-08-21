@@ -1256,6 +1256,11 @@
 				$src = rewrite_relative_url($site_url, $entry->getAttribute('src'));
 
 				$local_filename = CACHE_DIR . "/images/" . sha1($src) . ".png";
+				
+				if (substr($src,0,5) == "data:") {
+					_debug("cache_images: skipping $src", true);
+					continue;
+				}
 
 				if ($debug) _debug("cache_images: downloading: $src to $local_filename");
 
