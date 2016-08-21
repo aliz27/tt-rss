@@ -41,6 +41,8 @@ class Af_Comics_GoComics extends Af_ComicFilter {
 
 					if ($basenode) {
 						$article["content"] = $doc->saveXML($basenode);
+					} else {
+						$article["failed"] = true;
 					}
 				}
 
