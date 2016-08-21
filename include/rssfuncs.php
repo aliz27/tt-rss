@@ -826,8 +826,11 @@
 							if ($plugin) {
 								$start = microtime(true);
 								$article = $plugin->hook_article_filter_action($article, $pfaction);
-
 								_debug("=== " . sprintf("%.4f (sec)", microtime(true) - $start), $debug_enabled);
+								if ($article["failed"] == true) {
+									_debug("Failed plugin for article ".$article["guid"], $debug_enabled);
+									continue;
+								}
 							} else {
 								_debug("??? $pfclass: plugin object not found.");
 							}
