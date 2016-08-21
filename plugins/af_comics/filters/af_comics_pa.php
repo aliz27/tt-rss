@@ -69,6 +69,8 @@ class Af_Comics_Pa extends Af_ComicFilter {
 
 					if ($basenode){
 						$article["content"] = $doc->saveXML($basenode);
+					} else {
+						$article["failed"] = true;
 					}
 				}
 
