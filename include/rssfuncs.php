@@ -798,12 +798,21 @@
 
 				/* Collect article tags here so we could filter by them: */
 
+				$matched_rules = array();
+
 				$article_filters = get_article_filters($filters, $article["title"],
 					$article["content"], $article["link"], 0, $article["author"],
-					$article["tags"]);
+					$article["tags"], $matched_rules);
 
 				if ($debug_enabled) {
-					_debug("article filters: ", $debug_enabled);
+					_debug("matched filter rules: ", $debug_enabled);
+
+					if (count($matched_rules) != 0) {
+						print_r($matched_rules);
+					}
+
+					_debug("filter actions: ", $debug_enabled);
+
 					if (count($article_filters) != 0) {
 						print_r($article_filters);
 					}
@@ -853,7 +862,10 @@
 
 				if ($debug_enabled) {
 					_debug("article labels:", $debug_enabled);
-					print_r($article_labels);
+
+					if (count($article_labels) != 0) {
+						print_r($article_labels);
+					}
 				}
 
 				_debug("force catchup: $entry_force_catchup");
@@ -1360,7 +1372,7 @@
 		return $params;
 	}
 
-	function get_article_filters($filters, $title, $content, $link, $timestamp, $author, $tags) {
+	function get_article_filters($filters, $title, $content, $link, $timestamp, $author, $tags, &$matched_rules = false) {
 		$matches = array();
 
 		foreach ($filters as $filter) {
@@ -1426,6 +1438,8 @@
 			if ($inverse) $filter_match = !$filter_match;
 
 			if ($filter_match) {
+				if (is_array($matched_rules)) array_push($matched_rules, $rule);
+
 				foreach ($filter["actions"] AS $action) {
 					array_push($matches, $action);
 
