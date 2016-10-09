@@ -888,7 +888,7 @@
 		$doc->loadHTML($charset_hack . $res);
 		$xpath = new DOMXPath($doc);
 
-		$entries = $xpath->query('(//a[@href]|//img[@src])');
+		$entries = $xpath->query('(//a[@href]|//img[@src]|//video/source[@src])');
 
 		$ttrss_uses_https = parse_url(get_self_url_prefix(), PHP_URL_SCHEME) === 'https';
 
