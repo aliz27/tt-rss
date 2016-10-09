@@ -1264,7 +1264,7 @@
 		$doc->loadHTML($charset_hack . $html);
 		$xpath = new DOMXPath($doc);
 
-		$entries = $xpath->query('(//img[@src])');
+		$entries = $xpath->query('(//img[@src]|//video/source[@src])');
 
 		foreach ($entries as $entry) {
 			if ($entry->hasAttribute('src')) {
