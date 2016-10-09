@@ -1339,7 +1339,7 @@
 
 				if ($files) {
 					foreach ($files as $file) {
-						if (time() - filemtime($file) > 86400*7) {
+						if (time() - filemtime($file) > 86400*28) {
 							unlink($file);
 
 							++$num_deleted;
