@@ -263,7 +263,7 @@
 
 		$feed_data = fetch_file_contents($fetch_url, false,
 			$auth_login, $auth_pass, false,
-			FEED_FETCH_TIMEOUT_TIMEOUT,
+			FEED_FETCH_TIMEOUT,
 			0);
 
 		global $fetch_curl_used;
@@ -311,6 +311,13 @@
 
 		$result = db_query("SELECT title FROM ttrss_feeds
 			WHERE id = '$feed'");
+
+		if (db_num_rows($result) == 0) {
+			_debug("feed $feed NOT FOUND/SKIPPED", $debug_enabled);
+			user_error("Attempt to update unknown/invalid feed $feed", E_USER_WARNING);
+			return false;
+		}
+
 		$title = db_fetch_result($result, 0, "title");
 
 		// feed was batch-subscribed or something, we need to get basic info
@@ -326,12 +333,6 @@
 			pubsub_state, auth_pass_encrypted,
 			feed_language
 			FROM ttrss_feeds WHERE id = '$feed'");
-
-		if (db_num_rows($result) == 0) {
-			_debug("feed $feed NOT FOUND/SKIPPED", $debug_enabled);
-			user_error("Attempt to update unknown/invalid feed $feed", E_USER_WARNING);
-			return false;
-		}
 
 		$owner_uid = db_fetch_result($result, 0, "owner_uid");
 		$mark_unread_on_update = sql_bool_to_bool(db_fetch_result($result,
@@ -669,15 +670,11 @@
 					print "\n";
 				}
 
-				$entry_comments = $item->get_comments_url();
-				$entry_author = $item->get_author();
-
-				$entry_guid = db_escape_string(mb_substr($entry_guid, 0, 245));
-
-				$entry_comments = db_escape_string(mb_substr(trim($entry_comments), 0, 245));
-				$entry_author = db_escape_string(mb_substr(trim($entry_author), 0, 245));
-
+				$entry_comments = db_escape_string(mb_substr($item->get_comments_url(), 0, 245));
 				$num_comments = (int) $item->get_comments_count();
+
+				$entry_author = $item->get_author(); // escaped later
+				$entry_guid = db_escape_string(mb_substr($entry_guid, 0, 245));
 
 				_debug("author $entry_author", $debug_enabled);
 				_debug("num_comments: $num_comments", $debug_enabled);
@@ -852,7 +849,7 @@
 				$entry_tags = $article["tags"];
 				$entry_guid = db_escape_string($entry_guid);
 				$entry_title = db_escape_string($article["title"]);
-				$entry_author = db_escape_string($article["author"]);
+				$entry_author = db_escape_string(mb_substr($article["author"], 0, 245));
 				$entry_link = db_escape_string($article["link"]);
 				$entry_content = $article["content"]; // escaped below
 				$entry_force_catchup = $article["force_catchup"];
@@ -987,25 +984,6 @@
 						} else {
 							$published = 'false';
 						}
-
-						// N-grams
-
-						/* if (DB_TYPE == "pgsql" and defined('_NGRAM_TITLE_DUPLICATE_THRESHOLD')) {
-
-							$result = db_query("SELECT COUNT(*) AS similar FROM
-									ttrss_entries,ttrss_user_entries
-								WHERE ref_id = id AND updated >= NOW() - INTERVAL '7 day'
-									AND similarity(title, '$entry_title') >= "._NGRAM_TITLE_DUPLICATE_THRESHOLD."
-									AND owner_uid = $owner_uid");
-
-							$ngram_similar = db_fetch_result($result, 0, "similar");
-
-							_debug("N-gram similar results: $ngram_similar", $debug_enabled);
-
-							if ($ngram_similar > 0) {
-								$unread = 'false';
-							}
-						} */
 
 						$last_marked = ($marked == 'true') ? 'NOW()' : 'NULL';
 						$last_published = ($published == 'true') ? 'NOW()' : 'NULL';
@@ -1390,29 +1368,29 @@
 
 				switch ($rule["type"]) {
 				case "title":
-					$match = @preg_match("/$reg_exp/i", $title);
+					$match = @preg_match("/$reg_exp/iu", $title);
 					break;
 				case "content":
 					// we don't need to deal with multiline regexps
 					$content = preg_replace("/[\r\n\t]/", "", $content);
 
-					$match = @preg_match("/$reg_exp/i", $content);
+					$match = @preg_match("/$reg_exp/iu", $content);
 					break;
 				case "both":
 					// we don't need to deal with multiline regexps
 					$content = preg_replace("/[\r\n\t]/", "", $content);
 
-					$match = (@preg_match("/$reg_exp/i", $title) || @preg_match("/$reg_exp/i", $content));
+					$match = (@preg_match("/$reg_exp/iu", $title) || @preg_match("/$reg_exp/iu", $content));
 					break;
 				case "link":
-					$match = @preg_match("/$reg_exp/i", $link);
+					$match = @preg_match("/$reg_exp/iu", $link);
 					break;
 				case "author":
-					$match = @preg_match("/$reg_exp/i", $author);
+					$match = @preg_match("/$reg_exp/iu", $author);
 					break;
 				case "tag":
 					foreach ($tags as $tag) {
-						if (@preg_match("/$reg_exp/i", $tag)) {
+						if (@preg_match("/$reg_exp/iu", $tag)) {
 							$match = true;
 							break;
 						}
