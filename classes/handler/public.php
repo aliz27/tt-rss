@@ -1065,7 +1065,7 @@ class Handler_Public extends Handler {
 					header("Content-type: application/octet-stream");
 					header('Content-Disposition: attachment; filename="' . basename($filename) . '"');
 				} else {
-					header("Content-type: image/png");
+					header("Content-type: ".mime_content_type($filename));
 					$stamp = gmdate("D, d M Y H:i:s", filemtime($filename)). " GMT";
 					header("Last-Modified: $stamp", true);
 					readfile($filename);
