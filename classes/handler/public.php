@@ -1051,7 +1051,7 @@ class Handler_Public extends Handler {
 
 		if ($hash) {
 
-			$filename = CACHE_DIR . '/images/' . $hash . '.png';
+			$filename = CACHE_DIR . '/images/' . $hash;
 
 			if (file_exists($filename)) {
 				/* See if we can use X-Sendfile */
