@@ -6,9 +6,7 @@ class Af_Comics_Cad extends Af_ComicFilter {
 	}
 
 	function process(&$article) {
-		$owner_uid = $article["owner_uid"];
-
-		if (strpos($article["link"], "cad-comic.com/cad/") !== FALSE) {
+		if (strpos($article["link"], "cad-comic.com") !== FALSE) {
 			if (strpos($article["title"], "News:") === FALSE) {
 
 				global $fetch_last_error_content;
@@ -27,7 +25,7 @@ class Af_Comics_Cad extends Af_ComicFilter {
 					$basenode = $xpath->query('//div[@class="comicpage"]/a/img')->item(0);
 
 					if ($basenode) {
-						$article["content"] = $doc->saveXML($basenode);
+						$article["content"] = $doc->saveHTML($basenode);
 					}
 				}
 
