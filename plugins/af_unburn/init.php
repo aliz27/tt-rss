@@ -26,7 +26,6 @@ class Af_Unburn extends Plugin {
 
 		if ((strpos($article["link"], "feedproxy.google.com") !== FALSE ||
 		  		strpos($article["link"], "/~r/") !== FALSE ||
-		  		strpos($article["link"], "cuzz.cazooka.se/open.php") !== FALSE ||
 				strpos($article["link"], "feedsportal.com") !== FALSE)) {
 
 				$ch = curl_init($article["link"]);
