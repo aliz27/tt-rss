@@ -8,23 +8,6 @@ class Af_Comics_Cad extends Af_ComicFilter {
 	function process(&$article) {
 		$owner_uid = $article["owner_uid"];
 
-		if (strpos($article["link"], "cad-comic.com/sillies/") !== FALSE) {
-			$doc = new DOMDocument();
-			@$doc->loadHTML(fetch_file_contents($article["link"]));
-
-			$basenode = false;
-
-			if ($doc) {
-				$xpath = new DOMXPath($doc);
-				$basenode = $xpath->query('(//img[contains(@src, "/comics/sillies-")])')->item(0);
-
-				if ($basenode) {
-					$article["content"] = $doc->saveXML($basenode);
-				} else {
-					$article["failed"] = true;
-				}
-			}
-		}
 		if (strpos($article["link"], "cad-comic.com/cad/") !== FALSE) {
 			if (strpos($article["title"], "News:") === FALSE) {
 
@@ -45,8 +28,6 @@ class Af_Comics_Cad extends Af_ComicFilter {
 
 					if ($basenode) {
 						$article["content"] = $doc->saveXML($basenode);
-					} else {
-						$article["failed"] = true;
 					}
 				}
 
