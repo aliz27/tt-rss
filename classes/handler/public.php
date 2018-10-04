@@ -947,6 +947,7 @@ class Handler_Public extends Handler {
 				header("Content-Disposition: inline; filename=\"$req_filename\"");
 
 				send_local_file($filename);
+
 			} else {
 				header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
 				echo "File not found.";
