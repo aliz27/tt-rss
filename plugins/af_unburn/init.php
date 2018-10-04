@@ -24,30 +24,9 @@ class Af_Unburn extends Plugin {
 		if (defined('NO_CURL') || !function_exists("curl_init") || ini_get("open_basedir"))
 			return $article;
 
-		if (strpos($article["link"], "cuzz.cazooka.se") !== FALSE ) {
-			$page = fetch_file_contents($article["link"], false, false, false, false, 10);
-
-			$pageDoc = new DOMDocument();
-
-			if (@$pageDoc->loadHTML($page)) {
-				$pageXPath = new DOMXPath($pageDoc);
-
-				$scripts = $pageXPath->query("//script");
-
-				foreach ($scripts as $script) {
-					if (preg_match('/window.location = \'(.*)\'/', $script->nodeValue, $matches)) {
-						_debug("Found new url: ".$matches[1], $debug);
-						$article["plugin_data"] = "unburn,$owner_uid:" . $article["plugin_data"];
-						$article["link"] = $matches[1];
-					}
-				}
-			}
-
-		}
-
-
 		if ((strpos($article["link"], "feedproxy.google.com") !== FALSE ||
 		  		strpos($article["link"], "/~r/") !== FALSE ||
+		  		strpos($article["link"], "cuzz.cazooka.se/open.php") !== FALSE ||
 				strpos($article["link"], "feedsportal.com") !== FALSE)) {
 
 				$ch = curl_init($article["link"]);
@@ -95,6 +74,7 @@ class Af_Unburn extends Plugin {
 					$article["link"] = $real_url;
 				}
 		}
+
 		return $article;
 	}
 
