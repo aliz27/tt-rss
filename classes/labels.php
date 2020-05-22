@@ -12,7 +12,7 @@ class Labels
 	static function find_id($label, $owner_uid) {
 		$pdo = Db::pdo();
 
-		$sth = $pdo->prepare("SELECT id FROM ttrss_labels2 WHERE caption = ?
+		$sth = $pdo->prepare("SELECT id FROM ttrss_labels2 WHERE LOWER(caption) = LOWER(?)
 				AND owner_uid = ? LIMIT 1");
 		$sth->execute([$label, $owner_uid]);
 
@@ -42,7 +42,7 @@ class Labels
 
 		$pdo = Db::pdo();
 
-		$sth = $pdo->prepare("SELECT id, fg_color, bg_color, caption FROM ttrss_labels2 
+		$sth = $pdo->prepare("SELECT id, fg_color, bg_color, caption FROM ttrss_labels2
 			WHERE owner_uid = ? ORDER BY caption");
 		$sth->execute([$owner_uid]);
 
@@ -163,8 +163,8 @@ class Labels
 			/* Remove cached data */
 
 			$sth = $pdo->prepare("UPDATE ttrss_user_entries SET label_cache = ''
-				WHERE label_cache LIKE ? AND owner_uid = ?");
-			$sth->execute(["%$caption%", $owner_uid]);
+				WHERE owner_uid = ?");
+			$sth->execute([$owner_uid]);
 
 		}
 
@@ -186,11 +186,11 @@ class Labels
 		}
 
 		$sth = $pdo->prepare("SELECT id FROM ttrss_labels2
-			WHERE caption = ? AND owner_uid = ?");
+			WHERE LOWER(caption) = LOWER(?) AND owner_uid = ?");
 		$sth->execute([$caption, $owner_uid]);
 
 		if (!$sth->fetch()) {
-			$sth = $pdo->prepare("INSERT INTO ttrss_labels2 
+			$sth = $pdo->prepare("INSERT INTO ttrss_labels2
 				(caption,owner_uid,fg_color,bg_color) VALUES (?, ?, ?, ?)");
 
 			$sth->execute([$caption, $owner_uid, $fg_color, $bg_color]);

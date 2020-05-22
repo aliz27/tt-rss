@@ -8,7 +8,7 @@ class FeedItem_Atom extends FeedItem_Common {
 		if ($id) {
 			return $id->nodeValue;
 		} else {
-			return $this->get_link();
+			return clean($this->get_link());
 		}
 	}
 
@@ -44,9 +44,9 @@ class FeedItem_Atom extends FeedItem_Common {
 				$base = $this->xpath->evaluate("string(ancestor-or-self::*[@xml:base][1]/@xml:base)", $link);
 
 				if ($base)
-					return rewrite_relative_url($base, trim($link->getAttribute("href")));
+					return rewrite_relative_url($base, clean(trim($link->getAttribute("href"))));
 				else
-					return trim($link->getAttribute("href"));
+					return clean(trim($link->getAttribute("href")));
 
 			}
 		}
@@ -56,7 +56,7 @@ class FeedItem_Atom extends FeedItem_Common {
 		$title = $this->elem->getElementsByTagName("title")->item(0);
 
 		if ($title) {
-			return trim($title->nodeValue);
+			return clean(trim($title->nodeValue));
 		}
 	}
 
@@ -103,20 +103,20 @@ class FeedItem_Atom extends FeedItem_Common {
 
 	function get_categories() {
 		$categories = $this->elem->getElementsByTagName("category");
-		$cats = array();
+		$cats = [];
 
 		foreach ($categories as $cat) {
 			if ($cat->hasAttribute("term"))
-				array_push($cats, trim($cat->getAttribute("term")));
+				array_push($cats, $cat->getAttribute("term"));
 		}
 
 		$categories = $this->xpath->query("dc:subject", $this->elem);
 
 		foreach ($categories as $cat) {
-			array_push($cats, trim($cat->nodeValue));
+			array_push($cats, $cat->nodeValue);
 		}
 
-		return $cats;
+		return $this->normalize_categories($cats);
 	}
 
 	function get_enclosures() {
@@ -129,9 +129,9 @@ class FeedItem_Atom extends FeedItem_Common {
 				if ($link->getAttribute("rel") == "enclosure") {
 					$enc = new FeedEnclosure();
 
-					$enc->type = $link->getAttribute("type");
-					$enc->link = $link->getAttribute("href");
-					$enc->length = $link->getAttribute("length");
+					$enc->type = clean($link->getAttribute("type"));
+					$enc->link = clean($link->getAttribute("href"));
+					$enc->length = clean($link->getAttribute("length"));
 
 					array_push($encs, $enc);
 				}
@@ -147,12 +147,12 @@ class FeedItem_Atom extends FeedItem_Common {
 		$lang = $this->elem->getAttributeNS(self::NS_XML, "lang");
 
 		if (!empty($lang)) {
-			return $lang;
+			return clean($lang);
 		} else {
 			// Fall back to the language declared on the feed, if any.
 			foreach ($this->doc->childNodes as $child) {
 				if (method_exists($child, "getAttributeNS")) {
-					return $child->getAttributeNS(self::NS_XML, "lang");
+					return clean($child->getAttributeNS(self::NS_XML, "lang"));
 				}
 			}
 		}
