@@ -6,7 +6,7 @@ class Af_Comics_ComicClass extends Af_ComicFilter {
 	}
 
 	function process(&$article) {
-		if (str_contains($article["guid"], "loadingartist.com")) {
+		if (str_contains($article["guid"], "loadingartist.com/comic")) {
 
 				// lol at people who block clients by user agent
 				// oh noes my ad revenue Q_Q
@@ -20,7 +20,7 @@ class Af_Comics_ComicClass extends Af_ComicFilter {
 
 				if ($res && $doc->loadHTML($res)) {
 					$xpath = new DOMXPath($doc);
-					$basenode = $xpath->query('//div[@class="comic"]')->item(0);
+					$basenode = $xpath->query('//div[@class="main-image-container"]')->item(0);
 
 					if ($basenode) {
 						$article["content"] = $doc->saveHTML($basenode);
