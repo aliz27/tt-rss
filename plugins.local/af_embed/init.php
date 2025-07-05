@@ -108,7 +108,7 @@ class Af_Embed extends Plugin {
                 $url = $post[0]['data']['children'][0]['data']['url'] ?? '';
                 Debug::log("Af_Embed: Found URL: $url", Debug::LOG_VERBOSE);
                 if (str_ends_with($url, '.jpg') || str_ends_with($url, '.png') || str_ends_with($url, '.gif') || str_ends_with($url, '.jpeg')) {
-                        $article["content"] = "<img src=\"$image_url\" alt=\"Reddit Image\">";
+                        $article["content"] = "<img src=\"$url\" alt=\"Reddit Image\">";
                         $article["enclosures"] = [];
                         $embedded = true;
                 } else {
