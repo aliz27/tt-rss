@@ -112,7 +112,7 @@ class Af_Embed extends Plugin {
                         $article["enclosures"] = [];
                         $embedded = true;
                 } else {
-                    Debug::log("Af_Embed: No URL found in Reddit post" . var_dump($post[0]['data']['children'][0]['data']), Debug::LOG_VERBOSE);
+                    Debug::log("Af_Embed: No URL found in Reddit post"), Debug::LOG_VERBOSE);
                 }
             }
         }
