@@ -5,7 +5,7 @@ Thumbs.db
 /messages.mo
 /node_modules
 /locale/**/*.po~
-/plugins.local/*
+/plugins.local/fever
 /themes.local/*
 /config.php
 /feed-icons/*
