@@ -22,7 +22,12 @@ class Af_Comics_Pa extends Af_ComicFilter {
 					$xpath = new DOMXPath($doc);
 					$basenode = $xpath->query('(//div[@class="comic-area"]/a/div[1]/img)')->item(0);
 
-                    preg_match('/assets\.penny-arcade\.com\/comics\/panels\/([\d]+\-.+)\-p[\d]\.jpg/i',$basenode->getAttribute('src'),$a);
+                                        if (str_contains($basenode->getAttribute('src'), 'comics/panels')) {
+                                                preg_match('/assets\.penny-arcade\.com\/comics\/panels\/([\d]+\-.+)\-p[\d]\.jpg/i',$basenode->getAttribute('src'),$a);
+                                        } else {
+                                                preg_match('/assets\.penny-arcade\.com\/comics\/([\d]+\-.+)\.jpg/i',$basenode->getAttribute('src'),$a);
+                                        }
+
 					$basenode->setAttribute('src', 'https://assets.penny-arcade.com/comics/'.$a[1].'.jpg');
 					$basenode->removeAttribute('srcset');
 
