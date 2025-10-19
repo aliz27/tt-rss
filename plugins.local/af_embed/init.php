@@ -40,8 +40,9 @@ class Af_Embed extends Plugin {
 		if ($basenode) {
 			$article["content"] = $doc->saveHTML($basenode);
 		}
+            }
         }
-        }
+
         if (str_contains($article["link"], "reddit.com/")) {
             Debug::log("Af_Embed: Processing Reddit link", Debug::LOG_VERBOSE);
             $res = UrlHelper::fetch([
@@ -79,7 +80,7 @@ class Af_Embed extends Plugin {
                         $article["enclosures"] = [];
                         $embedded = true;
                     } else {
-                        Debug::log("Af_Embed: No hosted video URL found in Reddit post" . var_dump($post[0]['data']['children'][0]['data']), Debug::LOG_VERBOSE);           
+                        Debug::log("Af_Embed: No hosted video URL found in Reddit post" . var_dump($post[0]['data']['children'][0]['data']), Debug::LOG_VERBOSE);
                     }
                 }
 
@@ -104,6 +105,17 @@ class Af_Embed extends Plugin {
                     }
                 }
             }
+            elseif (array_key_exists('is_gallery', $post[0]['data']['children'][0]['data']) && $post[0]['data']['children'][0]['data']['is_gallery'] == 'true') {
+                Debug::log("Af_Embed: Found gallery", Debug::LOG_VERBOSE);
+                $article["content"] = "";
+                $article["enclosures"] = [];
+
+                foreach ($post[0]['data']['children'][0]['data']['gallery_data']['items'] as $gallery_item) {
+                        $_url = $post[0]['data']['children'][0]['data']['media_metadata'][$gallery_item['media_id']]['s']['u'];
+                        Debug::log("Af_Embed: Gallery image: $_url", Debug::LOG_VERBOSE);
+                        $article["content"] .= "<img src=\"$_url\" alt=\"Reddit Image\">";
+                }
+            }
             elseif (array_key_exists('url', $post[0]['data']['children'][0]['data'])) {
                 $url = $post[0]['data']['children'][0]['data']['url'] ?? '';
                 Debug::log("Af_Embed: Found URL: $url", Debug::LOG_VERBOSE);
@@ -112,7 +124,7 @@ class Af_Embed extends Plugin {
                         $article["enclosures"] = [];
                         $embedded = true;
                 } else {
-                    Debug::log("Af_Embed: No URL found in Reddit post"), Debug::LOG_VERBOSE);
+                    Debug::log("Af_Embed: No URL found in Reddit post", Debug::LOG_VERBOSE);
                 }
             }
         }
