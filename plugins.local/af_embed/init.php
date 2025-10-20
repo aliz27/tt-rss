@@ -97,6 +97,13 @@ class Af_Embed extends Plugin {
                     }
                 }
 
+                if ($post_hint == 'link') {
+                    Debug::log("Af_Embed: Found Reddit link post", Debug::LOG_VERBOSE);
+                    $preview = $post[0]['data']['children'][0]['data']['preview']['images'][0]['source']['url'] ?? '';
+                    $article["content"] = "<img src=\"$preview\" alt=\"Reddit Image\">";
+                    $article["content"] .= "<p><a href=\"" . $post[0]['data']['children'][0]['data']['url'] . "\">" . $post[0]['data']['children'][0]['data']['url'] . "</a></p>";
+                }
+                
                 if (array_key_exists('selftext_html', $post[0]['data']['children'][0]['data']) && $embedded) {
                     $selftext_html = $post[0]['data']['children'][0]['data']['selftext_html'] ?? '';
                     Debug::log("Af_Embed: Found Reddit selftext HTML: $selftext_html", Debug::LOG_VERBOSE);
