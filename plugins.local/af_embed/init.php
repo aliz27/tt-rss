@@ -103,7 +103,7 @@ class Af_Embed extends Plugin {
                     $article["content"] = "<img src=\"$preview\" alt=\"Reddit Image\">";
                     $article["content"] .= "<p><a href=\"" . $post[0]['data']['children'][0]['data']['url'] . "\">" . $post[0]['data']['children'][0]['data']['url'] . "</a></p>";
                 }
-                
+
                 if (array_key_exists('selftext_html', $post[0]['data']['children'][0]['data']) && $embedded) {
                     $selftext_html = $post[0]['data']['children'][0]['data']['selftext_html'] ?? '';
                     Debug::log("Af_Embed: Found Reddit selftext HTML: $selftext_html", Debug::LOG_VERBOSE);
