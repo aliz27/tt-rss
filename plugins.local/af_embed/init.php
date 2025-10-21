@@ -52,6 +52,13 @@ class Af_Embed extends Plugin {
 
             $post = json_decode($res, true);
 
+            $article["content"] = "";
+
+            Debug::log("Af_Embed: Reddit title length: ".strlen($post[0]['data']['children'][0]['data']['title']), Debug::LOG_VERBOSE);
+            if (strlen($post[0]['data']['children'][0]['data']['title']) > 200) {
+                $article["content"] .= "<p>".$post[0]['data']['children'][0]['data']['title']."</p>";
+            }
+
             if (array_key_exists('post_hint', $post[0]['data']['children'][0]['data'])) {
                 $post_hint = $post[0]['data']['children'][0]['data']['post_hint'] ?? '';
                 Debug::log("Af_Embed: Found Reddit post hint: " . $post_hint, Debug::LOG_VERBOSE);
@@ -76,7 +83,7 @@ class Af_Embed extends Plugin {
                     $preview = $post[0]['data']['children'][0]['data']['preview']['images'][0]['source']['url'] ?? '';
                     Debug::log("Af_Embed: Found Reddit hosted video URL: $video_url", Debug::LOG_VERBOSE);
                     if ($video_url) {
-                        $article["content"] = "<video controls><source src=\"$video_url\" type=\"video/mp4\" poster=\"$preview\"></video>";
+                        $article["content"] .= "<video controls><source src=\"$video_url\" type=\"video/mp4\" poster=\"$preview\"></video>";
                         $article["enclosures"] = [];
                         $embedded = true;
                     } else {
@@ -89,7 +96,7 @@ class Af_Embed extends Plugin {
                     $image_url = $post[0]['data']['children'][0]['data']['url'] ?? '';
                     Debug::log("Af_Embed: Found Reddit image URL: $image_url", Debug::LOG_VERBOSE);
                     if ($image_url) {
-                        $article["content"] = "<img src=\"$image_url\" alt=\"Reddit Image\">";
+                        $article["content"] .= "<img src=\"$image_url\" alt=\"Reddit Image\">";
                         $article["enclosures"] = [];
                         $embedded = true;
                     } else {
@@ -100,7 +107,7 @@ class Af_Embed extends Plugin {
                 if ($post_hint == 'link') {
                     Debug::log("Af_Embed: Found Reddit link post", Debug::LOG_VERBOSE);
                     $preview = $post[0]['data']['children'][0]['data']['preview']['images'][0]['source']['url'] ?? '';
-                    $article["content"] = "<img src=\"$preview\" alt=\"Reddit Image\">";
+                    $article["content"] .= "<img src=\"$preview\" alt=\"Reddit Image\">";
                     $article["content"] .= "<p><a href=\"" . $post[0]['data']['children'][0]['data']['url'] . "\">" . $post[0]['data']['children'][0]['data']['url'] . "</a></p>";
                 }
 
@@ -114,7 +121,7 @@ class Af_Embed extends Plugin {
             }
             elseif (array_key_exists('is_gallery', $post[0]['data']['children'][0]['data']) && $post[0]['data']['children'][0]['data']['is_gallery'] == 'true') {
                 Debug::log("Af_Embed: Found gallery", Debug::LOG_VERBOSE);
-                $article["content"] = "";
+//                $article["content"] = "";
                 $article["enclosures"] = [];
 
                 foreach ($post[0]['data']['children'][0]['data']['gallery_data']['items'] as $gallery_item) {
@@ -127,7 +134,7 @@ class Af_Embed extends Plugin {
                 $url = $post[0]['data']['children'][0]['data']['url'] ?? '';
                 Debug::log("Af_Embed: Found URL: $url", Debug::LOG_VERBOSE);
                 if (str_ends_with($url, '.jpg') || str_ends_with($url, '.png') || str_ends_with($url, '.gif') || str_ends_with($url, '.jpeg')) {
-                        $article["content"] = "<img src=\"$url\" alt=\"Reddit Image\">";
+                        $article["content"] .= "<img src=\"$url\" alt=\"Reddit Image\">";
                         $article["enclosures"] = [];
                         $embedded = true;
                 } else {
