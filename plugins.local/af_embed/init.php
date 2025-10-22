@@ -110,14 +110,6 @@ class Af_Embed extends Plugin {
                     $article["content"] .= "<img src=\"$preview\" alt=\"Reddit Image\">";
                     $article["content"] .= "<p><a href=\"" . $post[0]['data']['children'][0]['data']['url'] . "\">" . $post[0]['data']['children'][0]['data']['url'] . "</a></p>";
                 }
-
-                if (array_key_exists('selftext_html', $post[0]['data']['children'][0]['data']) && $embedded) {
-                    $selftext_html = $post[0]['data']['children'][0]['data']['selftext_html'] ?? '';
-                    Debug::log("Af_Embed: Found Reddit selftext HTML: $selftext_html", Debug::LOG_VERBOSE);
-                    if ($selftext_html) {
-                        $article["content"] .= htmlspecialchars_decode($selftext_html);
-                    }
-                }
             }
             elseif (array_key_exists('is_gallery', $post[0]['data']['children'][0]['data']) && $post[0]['data']['children'][0]['data']['is_gallery'] == 'true') {
                 Debug::log("Af_Embed: Found gallery", Debug::LOG_VERBOSE);
@@ -139,6 +131,21 @@ class Af_Embed extends Plugin {
                         $embedded = true;
                 } else {
                     Debug::log("Af_Embed: No URL found in Reddit post", Debug::LOG_VERBOSE);
+                }
+            }
+
+            if (array_key_exists('selftext_html', $post[0]['data']['children'][0]['data'])) {
+                $selftext_html = $post[0]['data']['children'][0]['data']['selftext_html'] ?? '';
+                Debug::log("Af_Embed: Found Reddit selftext HTML", Debug::LOG_VERBOSE);
+                if ($selftext_html) {
+                    $article["content"] .= htmlspecialchars_decode($selftext_html);
+                }
+            }
+            elseif (array_key_exists('selftext', $post[0]['data']['children'][0]['data'])) {
+                $selftext = $post[0]['data']['children'][0]['data']['selftext'] ?? '';
+                Debug::log("Af_Embed: Found Reddit selftext", Debug::LOG_VERBOSE);
+                if ($selftext) {
+                    $article["content"] .= "<p>".$selftext."</p>";
                 }
             }
         }
