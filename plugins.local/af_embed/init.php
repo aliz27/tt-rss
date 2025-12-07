@@ -8,10 +8,38 @@ class Af_Embed extends Plugin {
 
     function init($host) {
         $host->add_hook($host::HOOK_ARTICLE_FILTER, $this);
+        #$host->add_hook($host::HOOK_RENDER_ARTICLE, $this);
+        #$host->add_hook($host::HOOK_RENDER_ARTICLE_CDM, $this);
+        $host->add_hook($host::HOOK_RENDER_ARTICLE_API, $this);
     }
 
 	function api_version() {
 		return 2;
+	}
+
+	private function rewrite_contents(array $article) : array {
+        if (str_contains($article["link"], "reddit.com/")) {
+            Debug::log("Af_Embed: Reddit title length: ".strlen($article['title']), Debug::LOG_VERBOSE);
+            if (strlen($article["title"]) > 200) {
+                $article["content"] = "<p>".$article["title"]."</p>".$article["content"];
+                $article["title"] = "[...]".substr($article["title"],0,100);
+            }
+        }
+
+        return $article;
+	}
+
+	function hook_render_article_api($row) {
+		$article = isset($row['headline']) ? $row['headline'] : $row['article'];
+		return $this->rewrite_contents($article);
+	}
+
+	function hook_render_article($article) {
+		return $this->rewrite_contents($article);
+	}
+
+	function hook_render_article_cdm($article) {
+		return $this->rewrite_contents($article);
 	}
 
     function hook_article_filter($article) {
@@ -19,27 +47,27 @@ class Af_Embed extends Plugin {
 
         if (str_contains($article["link"], "/bofh_")) {
             $res = UrlHelper::fetch([
-		'url' => $article['link'],
-		'useragent' => 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; WOW64; Trident/6.0)',
+                'url' => $article['link'],
+		        'useragent' => 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; WOW64; Trident/6.0)',
     	    ]);
 
     	    $doc = new DOMDocument();
 
-  	    if ($res && $doc->loadHTML($res)) {
-		$xpath = new DOMXPath($doc);
-		$remove = [];
+  	        if ($res && $doc->loadHTML($res)) {
+		        $xpath = new DOMXPath($doc);
+		        $remove = [];
 
-		foreach($doc->getElementsByTagName('ul') as $node)
-			$remove[] = $node;
+		        foreach($doc->getElementsByTagName('ul') as $node)
+			        $remove[] = $node;
 
-		foreach($remove as $rem)
+		        foreach($remove as $rem)
                 	$rem->parentNode->removeChild($rem);
 
-		$basenode = $xpath->query('(//div[@class="article_wrap"]/div[@class="centre_col"])')->item(0);
+		        $basenode = $xpath->query('(//div[@class="article_wrap"]/div[@class="centre_col"])')->item(0);
 
-		if ($basenode) {
-			$article["content"] = $doc->saveHTML($basenode);
-		}
+		        if ($basenode) {
+			        $article["content"] = $doc->saveHTML($basenode);
+		        }
             }
         }
 
@@ -53,11 +81,6 @@ class Af_Embed extends Plugin {
             $post = json_decode($res, true);
 
             $article["content"] = "";
-
-            Debug::log("Af_Embed: Reddit title length: ".strlen($post[0]['data']['children'][0]['data']['title']), Debug::LOG_VERBOSE);
-            if (strlen($post[0]['data']['children'][0]['data']['title']) > 200) {
-                $article["content"] .= "<p>".$post[0]['data']['children'][0]['data']['title']."</p>";
-            }
 
             if (array_key_exists('post_hint', $post[0]['data']['children'][0]['data'])) {
                 $post_hint = $post[0]['data']['children'][0]['data']['post_hint'] ?? '';
