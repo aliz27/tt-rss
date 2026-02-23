@@ -2,9 +2,7 @@
 class Pref_Labels extends Handler_Protected {
 
 	function csrf_ignore(string $method): bool {
-		$csrf_ignored = array("index", "getlabeltree");
-
-		return array_search($method, $csrf_ignored) !== false;
+		return in_array($method, ['index', 'getlabeltree']);
 	}
 
 	function edit(): void {
@@ -18,10 +16,10 @@ class Pref_Labels extends Handler_Protected {
 	}
 
 	function getlabeltree(): void {
-		$root = array();
+		$root = [];
 		$root['id'] = 'root';
 		$root['name'] = __('Labels');
-		$root['items'] = array();
+		$root['items'] = [];
 
 		$sth = $this->pdo->prepare("SELECT *
 			FROM ttrss_labels2
@@ -30,29 +28,27 @@ class Pref_Labels extends Handler_Protected {
 		$sth->execute([$_SESSION['uid']]);
 
 		while ($line = $sth->fetch()) {
-			$label = array();
-			$label['id'] = 'LABEL:' . $line['id'];
-			$label['bare_id'] = $line['id'];
-			$label['name'] = $line['caption'];
-			$label['fg_color'] = $line['fg_color'];
-			$label['bg_color'] = $line['bg_color'];
-			$label['type'] = 'label';
-			$label['checkbox'] = false;
-
-			array_push($root['items'], $label);
+			$root['items'][] = [
+				'type' => 'label',
+				'id' => 'LABEL:' . $line['id'],
+				'bare_id' => $line['id'],
+				'name' => $line['caption'],
+				'fg_color' => $line['fg_color'],
+				'bg_color' => $line['bg_color'],
+				'checkbox' => false,
+			];
 		}
 
-		$fl = array();
-		$fl['identifier'] = 'id';
-		$fl['label'] = 'name';
-		$fl['items'] = array($root);
-
-		print json_encode($fl);
+		print json_encode([
+			'identifier' => 'id',
+			'label' => 'name',
+			'items' => [$root],
+		]);
 	}
 
 	function colorset(): void {
 		$kind = clean($_REQUEST["kind"]);
-		$ids = explode(',', clean($_REQUEST["ids"]));
+		$ids = self::_param_to_int_array($_REQUEST['ids'] ?? '');
 		$color = clean($_REQUEST["color"]);
 		$fg = clean($_REQUEST["fg"]);
 		$bg = clean($_REQUEST["bg"]);
@@ -84,7 +80,7 @@ class Pref_Labels extends Handler_Protected {
 	}
 
 	function colorreset(): void {
-		$ids = explode(',', clean($_REQUEST["ids"]));
+		$ids = self::_param_to_int_array($_REQUEST['ids'] ?? '');
 
 		foreach ($ids as $id) {
 			$sth = $this->pdo->prepare("UPDATE ttrss_labels2 SET
@@ -148,8 +144,7 @@ class Pref_Labels extends Handler_Protected {
 	}
 
 	function remove(): void {
-		/** @var array<int, int> */
-		$ids = array_map("intval", explode(",", clean($_REQUEST["ids"])));
+		$ids = self::_param_to_int_array($_REQUEST['ids'] ?? '');
 
 		foreach ($ids as $id) {
 			Labels::remove($id, $_SESSION["uid"]);
@@ -178,22 +173,19 @@ class Pref_Labels extends Handler_Protected {
 					<div dojoType='fox.form.DropDownButton'>
 						<span><?= __('Select') ?></span>
 						<div dojoType='dijit.Menu' style='display: none'>
-						<div onclick="dijit.byId('labelTree').model.setAllChecked(true)"
-							dojoType='dijit.MenuItem'><?=('All') ?></div>
-						<div onclick="dijit.byId('labelTree').model.setAllChecked(false)"
-							dojoType='dijit.MenuItem'><?=('None') ?></div>
+							<div onclick="dijit.byId('labelTree').model.setAllChecked(true)" dojoType='dijit.MenuItem'><?= __('All') ?></div>
+							<div onclick="dijit.byId('labelTree').model.setAllChecked(false)" dojoType='dijit.MenuItem'><?= __('None') ?></div>
+						</div>
 					</div>
-				</div>
 
-				<button dojoType='dijit.form.Button' onclick='CommonDialogs.addLabel()'>
-					<?=('Create label') ?></button dojoType='dijit.form.Button'>
+					<button dojoType='dijit.form.Button' onclick='CommonDialogs.addLabel()'>
+						<?= __('Create label') ?></button dojoType='dijit.form.Button'>
 
-				<button dojoType='dijit.form.Button' onclick="dijit.byId('labelTree').removeSelected()">
-					<?=('Remove') ?></button dojoType='dijit.form.Button'>
+					<button dojoType='dijit.form.Button' onclick="dijit.byId('labelTree').removeSelected()">
+						<?= __('Remove') ?></button dojoType='dijit.form.Button'>
 
-				<button dojoType='dijit.form.Button' onclick="dijit.byId('labelTree').resetColors()">
-					<?=('Clear colors') ?></button dojoType='dijit.form.Button'>
-
+					<button dojoType='dijit.form.Button' onclick="dijit.byId('labelTree').resetColors()">
+						<?= __('Clear colors') ?></button dojoType='dijit.form.Button'>
 				</div>
 			</div>
 

@@ -77,7 +77,6 @@ class Debug {
 	 */
 	public static function map_loglevel(int $level) : int {
 		if (in_array($level, self::ALL_LOG_LEVELS)) {
-			/** @phpstan-ignore return.type (yes it is a Debug::LOG_* value) */
 			return $level;
 		} else {
 			user_error("Passed invalid debug log level: $level", E_USER_WARNING);
@@ -150,7 +149,7 @@ class Debug {
 			if ($orig_message === self::SEPARATOR) {
 				print "$message\n";
 			} else {
-				print "<span class='log-timestamp'>$ts</span> <span class='log-message'>$message</span>\n";
+				print "<span class='log-timestamp'>$ts</span> <span class='log-message'>" . htmlspecialchars($message) . "</span>\n";
 			}
 		} else {
 			print "[$ts] $message\n";

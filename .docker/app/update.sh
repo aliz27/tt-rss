@@ -8,6 +8,31 @@
 unset HTTP_PORT
 unset HTTP_HOST
 
+# Allow setting environment variables with Docker secrets.
+# The format is '<variable-name>__FILE'.
+SUFFIX="__FILE"
+
+# loop through all environment variables
+for VAR in $(printenv | awk -F= '{print $1}'); do
+	# shellcheck disable=SC2330 # https://github.com/koalaman/shellcheck/issues/2998
+	if [[ $VAR == *"$SUFFIX" ]]; then
+		ENV_FILE_NAME="$(printenv "${VAR}")"
+		ENV_VAR="${VAR%$SUFFIX}"
+
+		if printenv "$ENV_VAR" &>/dev/null; then
+			echo "warning: Both $ENV_VAR and $VAR are set. $VAR will override $ENV_VAR."
+		fi
+
+		if [[ -r "$ENV_FILE_NAME" ]]; then
+			VALUE="$(cat "$ENV_FILE_NAME")"
+			export "$ENV_VAR"="$VALUE"
+			echo "$ENV_VAR environment variable was set by secret file $ENV_FILE_NAME"
+		else
+			echo "warning: Secret file $ENV_FILE_NAME for $VAR is not readable or does not exist."
+		fi
+	fi
+done
+
 if ! id app >/dev/null 2>&1; then
 	addgroup -g $OWNER_GID app
 	adduser -D -h $APP_INSTALL_BASE_DIR -G app -u $OWNER_UID app
@@ -38,7 +63,7 @@ if [ -z $SKIP_RSYNC_ON_STARTUP ]; then
 			$SRC_DIR/ $DST_DIR/
 
 		sudo -u app rsync -a --no-owner --delete \
-			$SRC_DIR/plugins.local/nginx_xaccel \
+			$SRC_DIR/plugins.local/nginx_xaccel/ \
 			$DST_DIR/plugins.local/nginx_xaccel
 	fi
 else
@@ -64,7 +89,8 @@ chmod 644 $DST_DIR/config.php
 
 if [ ! -z "${TTRSS_XDEBUG_ENABLED}" ]; then
 	if [ -z "${TTRSS_XDEBUG_HOST}" ]; then
-		export TTRSS_XDEBUG_HOST=$(ip ro sh 0/0 | cut -d " " -f 3)
+		TTRSS_XDEBUG_HOST=$(ip ro sh 0/0 | cut -d " " -f 3)
+		export TTRSS_XDEBUG_HOST
 	fi
 	echo enabling xdebug with the following parameters:
 	env | grep TTRSS_XDEBUG

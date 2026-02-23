@@ -1,9 +1,6 @@
 <?php
-	set_include_path(__DIR__ ."/include" . PATH_SEPARATOR .
-		get_include_path());
-
-	require_once "autoload.php";
-	require_once "sessions.php";
+	require_once __DIR__ . '/include/autoload.php';
+	require_once __DIR__ . '/include/sessions.php';
 
 	Config::sanity_check();
 
@@ -11,25 +8,17 @@
 
 	if (!init_plugins()) return;
 
-	$method = (string)clean($_REQUEST["op"]);
+	$method = (string) clean($_REQUEST['op'] ?? '');
 
 	// shortcut syntax for public (exposed) methods (?op=plugin--pmethod&...params)
 	if (str_contains($method, PluginHost::PUBLIC_METHOD_DELIMITER)) {
-		list ($plugin, $pmethod) = explode(PluginHost::PUBLIC_METHOD_DELIMITER, $method, 2);
+		[$plugin, $pmethod] = explode(PluginHost::PUBLIC_METHOD_DELIMITER, $method, 2);
 
 		// TODO: better implementation that won't modify $_REQUEST
 		$_REQUEST["plugin"] = $plugin;
 		$_REQUEST["pmethod"] = $pmethod;
 
 		$method = "pluginhandler";
-	}
-
-	$override = PluginHost::getInstance()->lookup_handler("public", $method);
-
-	if ($override) {
-		$handler = $override;
-	} else {
-		$handler = new Handler_Public($_REQUEST);
 	}
 
 	if (str_starts_with($method, "_")) {
@@ -39,6 +28,8 @@
 
 		return;
 	}
+
+	$handler = PluginHost::getInstance()->lookup_handler('public', $method) ?: new Handler_Public($_REQUEST);
 
 	if (implements_interface($handler, "IHandler") && $handler->before($method)) {
 

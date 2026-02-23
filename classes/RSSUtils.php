@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../include/colors.php';
+
 class RSSUtils {
 
 	/**
@@ -134,10 +136,9 @@ class RSSUtils {
 
 		$res = $pdo->query($query);
 
-		$feeds_to_update = array();
-		while ($line = $res->fetch()) {
-			array_push($feeds_to_update, $line['feed_url']);
-		}
+		$feeds_to_update = [];
+		while ($line = $res->fetch())
+			$feeds_to_update[] = $line['feed_url'];
 
 		Debug::log(sprintf("Scheduled %d feeds to update...", count($feeds_to_update)));
 
@@ -184,10 +185,10 @@ class RSSUtils {
 			if ($tline = $usth->fetch()) {
 				Debug::log(sprintf("=> %s (ID: %d, U: %s [%d]), last updated: %s", $tline["title"], $tline["id"],
 					$tline["owner"], $tline["owner_uid"],
-					$tline["last_updated"] ? $tline["last_updated"] : "never"));
+					$tline["last_updated"] ?: "never"));
 
-				if (!in_array($tline["owner_uid"], $batch_owners))
-					array_push($batch_owners, $tline["owner_uid"]);
+				if (!in_array($tline['owner_uid'], $batch_owners))
+					$batch_owners[] = $tline['owner_uid'];
 
 				$fstarted = microtime(true);
 
@@ -243,7 +244,7 @@ class RSSUtils {
 
 						try {
 							$pdo->rollback();
-						} catch (PDOException $e) {
+						} catch (PDOException) {
 							// it doesn't matter if there wasn't actually anything to rollback, PDO Exception can be
 							// thrown outside of an active transaction during feed update
 						}
@@ -427,7 +428,7 @@ class RSSUtils {
 		$pluginhost->chain_hooks_callback(PluginHost::HOOK_FETCH_FEED,
 			function ($result, $plugin) use (&$feed_data, $start_ts) {
 				$feed_data = $result;
-				Debug::log(sprintf("=== %.4f (sec) %s", microtime(true) - $start_ts, get_class($plugin)), Debug::LOG_VERBOSE);
+				Debug::log(sprintf("=== %.4f (sec) %s", microtime(true) - $start_ts, $plugin::class), Debug::LOG_VERBOSE);
 			},
 			$feed_data, $hff_feed_url, $hff_owner_uid, $feed, $last_article_timestamp, $feed_obj->auth_login, $feed_auth_pass_plaintext);
 
@@ -511,10 +512,12 @@ class RSSUtils {
 				Debug::log("source claims data not modified (304), nothing to do.", Debug::LOG_VERBOSE);
 				$error_message = "";
 
+				$now = Db::NOW();
+
 				$feed_obj->set([
 					'last_error' => '',
-					'last_successful_update' => Db::NOW(),
-					'last_updated' => Db::NOW(),
+					'last_successful_update' => $now,
+					'last_updated' => $now,
 				]);
 
 				$feed_obj->save();
@@ -522,7 +525,7 @@ class RSSUtils {
 			} else if (UrlHelper::$fetch_last_error_code == 429) {
 
 				// randomize interval using Config::HTTP_429_THROTTLE_INTERVAL as a base value (1-2x)
-				$http_429_throttle_interval = rand(Config::get(Config::HTTP_429_THROTTLE_INTERVAL),
+				$http_429_throttle_interval = random_int(Config::get(Config::HTTP_429_THROTTLE_INTERVAL),
 					Config::get(Config::HTTP_429_THROTTLE_INTERVAL)*2);
 
 				$error_message = UrlHelper::$fetch_last_error;
@@ -570,7 +573,7 @@ class RSSUtils {
 		$pluginhost->chain_hooks_callback(PluginHost::HOOK_FEED_FETCHED,
 			function ($result, $plugin) use (&$feed_data, $start_ts) {
 				$feed_data = $result;
-				Debug::log(sprintf("=== %.4f (sec) %s", microtime(true) - $start_ts, get_class($plugin)), Debug::LOG_VERBOSE);
+				Debug::log(sprintf("=== %.4f (sec) %s", microtime(true) - $start_ts, $plugin::class), Debug::LOG_VERBOSE);
 			},
 			$feed_data, $pff_feed_url, $pff_owner_uid, $feed);
 
@@ -599,7 +602,7 @@ class RSSUtils {
 			$start_ts = microtime(true);
 			$pluginhost->chain_hooks_callback(PluginHost::HOOK_FEED_PARSED,
 				function($result, $plugin) use ($start_ts) {
-					Debug::log(sprintf("=== %.4f (sec) %s", microtime(true) - $start_ts, get_class($plugin)), Debug::LOG_VERBOSE);
+					Debug::log(sprintf("=== %.4f (sec) %s", microtime(true) - $start_ts, $plugin::class), Debug::LOG_VERBOSE);
 				},
 				$rss, $feed);
 
@@ -646,8 +649,6 @@ class RSSUtils {
 				/* terrible hack: if we crash on floicon shit here, we won't check
 				 * the icon avgcolor again (unless icon got updated) */
 				if (file_exists($favicon_cache->get_full_path($feed)) && function_exists("imagecreatefromstring") && empty($feed_obj->favicon_avg_color)) {
-					require_once "colors.php";
-
 					Debug::log("favicon: trying to calculate average color...", Debug::LOG_VERBOSE);
 
 					$feed_obj->favicon_avg_color = 'fail';
@@ -670,9 +671,8 @@ class RSSUtils {
 
 			$filters = self::load_filters($feed, $feed_obj->owner_uid);
 
-			if (Debug::get_loglevel() >= Debug::LOG_EXTENDED) {
-				print_r($filters);
-			}
+			if (Debug::get_loglevel() >= Debug::LOG_EXTENDED)
+				Debug::log(print_r($filters, true), Debug::LOG_VERBOSE);
 
 			Debug::log("" . count($filters) . " filters loaded.", Debug::LOG_VERBOSE);
 
@@ -681,9 +681,12 @@ class RSSUtils {
 			if (count($items) === 0) {
 				Debug::log("no articles found.", Debug::LOG_VERBOSE);
 
+				$now = Db::NOW();
+
 				$feed_obj->set([
-					'last_updated' => Db::NOW(),
-					'last_unconditional' => Db::NOW(),
+					'last_updated' => $now,
+					'last_unconditional' => $now,
+					'last_successful_update' => $now,
 					'last_error' => '',
 				]);
 
@@ -698,9 +701,8 @@ class RSSUtils {
 			foreach ($items as $item) {
 				Debug::log(Debug::SEPARATOR, Debug::LOG_VERBOSE);
 
-				if (Debug::get_loglevel() >= 3) {
-					print_r($item);
-				}
+				if (Debug::get_loglevel() >= 3)
+					Debug::log(print_r($item, true), Debug::LOG_VERBOSE);
 
 				if (ini_get("max_execution_time") > 0 && time() - $tstart >= ((float)ini_get("max_execution_time") * 0.7)) {
 					Debug::log("looks like there's too many articles to process at once, breaking out.", Debug::LOG_VERBOSE);
@@ -775,7 +777,7 @@ class RSSUtils {
 				} else {
 					$base_entry_id = false;
 					$entry_stored_hash = "";
-					$article_labels = array();
+					$article_labels = [];
 				}
 
 				Debug::log("looking for enclosures...", Debug::LOG_VERBOSE);
@@ -783,7 +785,7 @@ class RSSUtils {
 				// enclosures
 
 				/** @var array<int, FeedEnclosure> */
-				$enclosures = array();
+				$enclosures = [];
 
 				$encs = $item->get_enclosures();
 
@@ -801,10 +803,10 @@ class RSSUtils {
 						continue;
 					}
 
-					array_push($enclosures, $e);
+					$enclosures[] = $e;
 				}
 
-				$article = array("owner_uid" => $feed_obj->owner_uid, // read only
+				$article = ["owner_uid" => $feed_obj->owner_uid, // read only
 					"guid" => $entry_guid, // read only
 					"guid_hashed" => $entry_guid_hashed, // read only
 					"title" => $entry_title,
@@ -819,11 +821,11 @@ class RSSUtils {
 					"timestamp" => $entry_timestamp,
 					"num_comments" => $num_comments,
 					"enclosures" => $enclosures,
-					"feed" => array("id" => $feed,
+					"feed" => ["id" => $feed,
 						"fetch_url" => $feed_obj->feed_url,
 						"site_url" => $feed_obj->site_url,
-						"cache_images" => $feed_obj->cache_images)
-				);
+						"cache_images" => $feed_obj->cache_images]
+				];
 
 				$entry_plugin_data = "";
 				$entry_current_hash = self::calculate_article_hash($article, $pluginhost);
@@ -854,9 +856,9 @@ class RSSUtils {
 					function ($result, $plugin) use (&$article, &$entry_plugin_data, $start_ts) {
 						$article = $result;
 
-						$entry_plugin_data .= mb_strtolower(get_class($plugin)) . ",";
+						$entry_plugin_data .= mb_strtolower($plugin::class) . ",";
 
-						Debug::log(sprintf("=== %.4f (sec) %s", microtime(true) - $start_ts, get_class($plugin)),
+						Debug::log(sprintf("=== %.4f (sec) %s", microtime(true) - $start_ts, $plugin::class),
 							Debug::LOG_VERBOSE);
 					},
 					$article);
@@ -898,21 +900,18 @@ class RSSUtils {
 				if (Debug::get_loglevel() >= Debug::LOG_EXTENDED) {
 					Debug::log("matched filters: ", Debug::LOG_VERBOSE);
 
-					if (count($matched_filters) != 0) {
-						print_r($matched_filters);
-					}
+					if (count($matched_filters) != 0)
+						Debug::log(print_r($matched_filters, true), Debug::LOG_VERBOSE);
 
 					Debug::log("matched filter rules: ", Debug::LOG_VERBOSE);
 
-					if (count($matched_rules) != 0) {
-						print_r($matched_rules);
-					}
+					if (count($matched_rules) != 0)
+						Debug::log(print_r($matched_rules, true), Debug::LOG_VERBOSE);
 
 					Debug::log("filter actions: ", Debug::LOG_VERBOSE);
 
-					if (count($article_filter_actions) != 0) {
-						print_r($article_filter_actions);
-					}
+					if (count($article_filter_actions) != 0)
+						Debug::log(print_r($article_filter_actions, true), Debug::LOG_VERBOSE);
 				}
 
 				// filter actions of type 'plugin' sourced from filters that matched the article
@@ -925,7 +924,7 @@ class RSSUtils {
 					Debug::log("applying plugin filter actions...", Debug::LOG_VERBOSE);
 
 					foreach ($plugin_filter_actions as $pfa) {
-						list($pfclass,$pfaction) = explode(":", $pfa["param"]);
+						[$pfclass, $pfaction] = explode(":", $pfa["param"]);
 
 						if (isset($pluginhost_filter_actions[$pfclass])) {
 							$plugin = $pluginhost->get_plugin($pfclass);
@@ -972,9 +971,8 @@ class RSSUtils {
 				if (Debug::get_loglevel() >= Debug::LOG_EXTENDED) {
 					Debug::log("article labels:", Debug::LOG_VERBOSE);
 
-					if (count($article_labels) != 0) {
-						print_r($article_labels);
-					}
+					if (count($article_labels) != 0)
+						Debug::log(print_r($article_labels, true), Debug::LOG_VERBOSE);
 				}
 
 				Debug::log("force catchup: $entry_force_catchup", Debug::LOG_VERBOSE);
@@ -1134,7 +1132,7 @@ class RSSUtils {
 
 					// it's pointless to update base record we've just created
 					if (!$base_record_created) {
-						$sth = $pdo->prepare("UPDATE ttrss_entries
+						$sth = $pdo->prepare('UPDATE ttrss_entries
 							SET title = :title,
 								tsvector_combined = to_tsvector(:ts_lang, :ts_content),
 								content = :content,
@@ -1145,22 +1143,21 @@ class RSSUtils {
 								plugin_data = :plugin_data,
 								author = :author,
 								lang = :lang
-							WHERE id = :id");
+							WHERE id = :id');
 
-						$params = [":title" => $entry_title,
-							":content" => "$entry_content",
-							":content_hash" => $entry_current_hash,
-							":updated" => $entry_timestamp_fmt,
-							":num_comments" => (int)$num_comments,
-							":plugin_data" => $entry_plugin_data,
-							":author" => "$entry_author",
-							":lang" => $entry_language,
-							":id" => $ref_id,
-							":ts_lang" => $feed_language,
-							":ts_content" => mb_substr(strip_tags($entry_title) . " " . \Soundasleep\Html2Text::convert($entry_content), 0, 900000)
-							];
-
-						$sth->execute($params);
+						$sth->execute([
+							':title' => $entry_title,
+							':content' => "$entry_content",
+							':content_hash' => $entry_current_hash,
+							':updated' => $entry_timestamp_fmt,
+							':num_comments' => (int)$num_comments,
+							':plugin_data' => $entry_plugin_data,
+							':author' => "$entry_author",
+							':lang' => $entry_language,
+							':id' => $ref_id,
+							':ts_lang' => $feed_language,
+							':ts_content' => mb_substr(strip_tags($entry_title) . ' ' . \Soundasleep\Html2Text::convert($entry_content), 0, 900000),
+						]);
 					}
 
 					// update aux data
@@ -1198,7 +1195,7 @@ class RSSUtils {
 
 				if (Debug::get_loglevel() >= Debug::LOG_EXTENDED) {
 					Debug::log("article enclosures:", Debug::LOG_VERBOSE);
-					print_r($enclosures);
+					Debug::log(print_r($enclosures, true), Debug::LOG_VERBOSE);
 				}
 
 				$esth = $pdo->prepare("SELECT id FROM ttrss_enclosures
@@ -1283,10 +1280,12 @@ class RSSUtils {
 
 			Feeds::_purge($feed, 0);
 
+			$now = Db::NOW();
+
 			$feed_obj->set([
-				'last_updated' => Db::NOW(),
-				'last_unconditional' => Db::NOW(),
-				'last_successful_update' => Db::NOW(),
+				'last_updated' => $now,
+				'last_unconditional' => $now,
+				'last_successful_update' => $now,
 				'last_error' => '',
 			]);
 
@@ -1304,9 +1303,11 @@ class RSSUtils {
 				}
 			}
 
+			$now = Db::NOW();
+
 			$feed_obj->set([
-				'last_updated' => Db::NOW(),
-				'last_unconditional' => Db::NOW(),
+				'last_updated' => $now,
+				'last_unconditional' => $now,
 				'last_error' => $error_msg,
 			]);
 
@@ -1343,9 +1344,9 @@ class RSSUtils {
 					Debug::log("cache_enclosures: downloading: $src to $local_filename", Debug::LOG_VERBOSE);
 
 					if (!$cache->exists($local_filename)) {
-						$file_content = UrlHelper::fetch(array("url" => $src,
+						$file_content = UrlHelper::fetch(["url" => $src,
 							"http_referrer" => $src,
-							"max_size" => Config::get(Config::MAX_CACHE_FILE_SIZE)));
+							"max_size" => Config::get(Config::MAX_CACHE_FILE_SIZE)]);
 
 						if ($file_content) {
 							$cache->put($local_filename, $file_content);
@@ -1368,9 +1369,9 @@ class RSSUtils {
 		if (!$cache->exists($local_filename)) {
 			Debug::log("cache_media: downloading: $url to $local_filename", Debug::LOG_VERBOSE);
 
-			$file_content = UrlHelper::fetch(array("url" => $url,
+			$file_content = UrlHelper::fetch(["url" => $url,
 				"http_referrer" => $url,
-				"max_size" => Config::get(Config::MAX_CACHE_FILE_SIZE)));
+				"max_size" => Config::get(Config::MAX_CACHE_FILE_SIZE)]);
 
 			if ($file_content) {
 				$cache->put($local_filename, $file_content);
@@ -1393,7 +1394,7 @@ class RSSUtils {
 
 				/** @var DOMElement $entry */
 				foreach ($entries as $entry) {
-					foreach (array('src', 'poster') as $attr) {
+					foreach (['src', 'poster'] as $attr) {
 						if ($entry->hasAttribute($attr) && !str_starts_with($entry->getAttribute($attr), "data:")) {
 							self::cache_media_url($cache, $entry->getAttribute($attr), $site_url);
 						}
@@ -1449,7 +1450,7 @@ class RSSUtils {
 	 * @return array<int, array{'type': string, 'param': string}> An array of filter actions from matched filters
 	 */
 	static function eval_article_filters(array $filters, string $title, string $content, string $link, string $author, array $tags, ?array &$matched_rules = null, ?array &$matched_filters = null): array {
-		$matches = array();
+		$matches = [];
 
 		foreach ($filters as $filter) {
 			$match_any_rule = $filter["match_any_rule"] ?? false;
@@ -1458,11 +1459,11 @@ class RSSUtils {
 			$last_processed_rule = false;
 			$regexp_matches = [];
 
+			/** @var array{reg_exp: string, type: string, inverse: bool} $rule */
 			foreach ($filter["rules"] as $rule) {
 				$match = false;
 				$reg_exp = str_replace('/', '\/', (string)$rule["reg_exp"]);
 				$reg_exp = str_replace("\n", "", $reg_exp); // reg_exp may be formatted with CRs now because of textarea, we need to strip those
-				$rule_inverse = $rule["inverse"] ?? false;
 				$last_processed_rule = $rule;
 
 				if (empty($reg_exp))
@@ -1492,7 +1493,7 @@ class RSSUtils {
 						break;
 					case "tag":
 						if (count($tags) == 0)
-							array_push($tags, ''); // allow matching if there are no tags
+							$tags[] = ''; // allow matching if there are no tags
 
 						foreach ($tags as $tag) {
 							if (@preg_match("/$reg_exp/iu", $tag, $regexp_matches)) {
@@ -1503,7 +1504,8 @@ class RSSUtils {
 						break;
 				}
 
-				if ($rule_inverse) $match = !$match;
+				if ($rule['inverse'])
+					$match = !$match;
 
 				if ($match_any_rule) {
 					if ($match) {
@@ -1523,14 +1525,18 @@ class RSSUtils {
 			if ($filter_match) {
 				$last_processed_rule["regexp_matches"] = $regexp_matches;
 
-				if (is_array($matched_rules)) array_push($matched_rules, $last_processed_rule);
-				if (is_array($matched_filters)) array_push($matched_filters, $filter);
+				if (is_array($matched_rules))
+					$matched_rules[] = $last_processed_rule;
 
-				foreach ($filter["actions"] AS $action) {
-					array_push($matches, $action);
+				if (is_array($matched_filters))
+					$matched_filters[] = $filter;
+
+				foreach ($filter['actions'] as $action) {
+					$matches[] = $action;
 
 					// if Stop action encountered, perform no further processing
-					if (isset($action["type"]) && $action["type"] == "stop") return $matches;
+					if (isset($action['type']) && $action['type'] == 'stop')
+						return $matches;
 				}
 			}
 		}
@@ -1558,14 +1564,7 @@ class RSSUtils {
 	 * @return array<int, array{'type': string, 'param': string}> An array of filter actions of type $filter_action_type
 	 */
 	static function find_article_filter_actions(array $filter_actions, string $filter_action_type): array {
-		$results = array();
-
-		foreach ($filter_actions as $fa) {
-			if ($fa["type"] == $filter_action_type) {
-				array_push($results, $fa);
-			};
-		}
-		return $results;
+		return array_filter($filter_actions, fn(array $fa) => $fa['type'] === $filter_action_type);
 	}
 
 	/**
@@ -1808,23 +1807,19 @@ class RSSUtils {
 	}
 
 	static function is_gzipped(string $feed_data): bool {
-		return strpos(substr($feed_data, 0, 3),
-				"\x1f" . "\x8b" . "\x08", 0) === 0;
+		return str_starts_with(substr($feed_data, 0, 3), "\x1f" . "\x8b" . "\x08");
 	}
 
 	/**
 	 * @return array<int, array{'id': int, 'match_any_rule': bool, 'inverse': bool, 'rules': array<int,mixed>, 'actions': array<int,mixed>}> An array of filters
 	 */
 	static function load_filters(int $feed_id, int $owner_uid): array {
-		$filters = array();
+		$filters = [];
 
 		$feed_id = (int) $feed_id;
 		$cat_id = Feeds::_cat_of($feed_id);
 
-		if (!$cat_id)
-			$null_cat_qpart = "cat_id IS NULL OR";
-		else
-			$null_cat_qpart = "";
+		$null_cat_qpart = $cat_id ? '' : 'cat_id IS NULL OR';
 
 		$pdo = Db::pdo();
 
@@ -1853,8 +1848,8 @@ class RSSUtils {
 						filter_type = t.id AND filter_id = ?");
 			$sth2->execute([$feed_id, $filter_id]);
 
-			$rules = array();
-			$actions = array();
+			$rules = [];
+			$actions = [];
 
 			while ($rule_line = $sth2->fetch()) {
 				#				print_r($rule_line);
@@ -1863,13 +1858,11 @@ class RSSUtils {
 					$match_on = json_decode($rule_line["match_on"], true);
 
 					if (in_array("0", $match_on) || in_array($feed_id, $match_on) || count(array_intersect($check_cats_fullids, $match_on)) > 0) {
-
-						$rule = array();
-						$rule["reg_exp"] = $rule_line["reg_exp"];
-						$rule["type"] = $rule_line["type_name"];
-						$rule["inverse"] = sql_bool_to_bool($rule_line["inverse"]);
-
-						array_push($rules, $rule);
+						$rules[] = [
+							'reg_exp' => $rule_line['reg_exp'],
+							'type' => $rule_line['type_name'],
+							'inverse' => sql_bool_to_bool($rule_line['inverse']),
+						];
 					} else if (!$match_any_rule) {
 						// this filter contains a rule that doesn't match to this feed/category combination
 						// thus filter has to be rejected
@@ -1879,13 +1872,11 @@ class RSSUtils {
 					}
 
 				} else {
-
-					$rule = array();
-					$rule["reg_exp"] = $rule_line["reg_exp"];
-					$rule["type"] = $rule_line["type_name"];
-					$rule["inverse"] = sql_bool_to_bool($rule_line["inverse"]);
-
-					array_push($rules, $rule);
+					$rules[] = [
+						'reg_exp' => $rule_line['reg_exp'],
+						'type' => $rule_line['type_name'],
+						'inverse' => sql_bool_to_bool($rule_line['inverse']),
+					];
 				}
 			}
 
@@ -1898,25 +1889,21 @@ class RSSUtils {
 				$sth2->execute([$filter_id]);
 
 				while ($action_line = $sth2->fetch()) {
-					#				print_r($action_line);
-
-					$action = array();
-					$action["type"] = $action_line["type_name"];
-					$action["param"] = $action_line["action_param"];
-
-					array_push($actions, $action);
+					$actions[] = [
+						'type' => $action_line['type_name'],
+						'param' => $action_line['action_param'],
+					];
 				}
 			}
 
-			$filter = [];
-			$filter["id"] = $filter_id;
-			$filter["match_any_rule"] = sql_bool_to_bool($line["match_any_rule"]);
-			$filter["inverse"] = sql_bool_to_bool($line["inverse"]);
-			$filter["rules"] = $rules;
-			$filter["actions"] = $actions;
-
 			if (count($rules) > 0 && count($actions) > 0) {
-				array_push($filters, $filter);
+				$filters[] = [
+					'id' => $filter_id,
+					'match_any_rule' => sql_bool_to_bool($line['match_any_rule']),
+					'inverse' => sql_bool_to_bool($line['inverse']),
+					'rules' => $rules,
+					'actions' => $actions,
+				];
 			}
 		}
 
@@ -1930,13 +1917,8 @@ class RSSUtils {
 	 * @return false|string The favicon URL string, or false if none was found.
 	 */
 	static function get_favicon_url(string $url): false|string {
-
 		$favicon_urls = self::get_favicon_urls($url);
-
-		if (count($favicon_urls) > 0)
-			return $favicon_urls[0];
-		else
-			return false;
+		return count($favicon_urls) > 0 ? $favicon_urls[0] : false;
 	}
 
 	/**
@@ -1973,25 +1955,23 @@ class RSSUtils {
 					$favicon_url = UrlHelper::rewrite_relative($url, $entry->getAttribute("href"));
 
 					if ($favicon_url)
-						array_push($favicon_urls, $favicon_url);
+						$favicon_urls[] = $favicon_url;
 				}
 			}
 		}
 
 		if (count($favicon_urls) == 0) {
-			$favicon_url = UrlHelper::rewrite_relative($url, "/favicon.ico");
+			$favicon_url = UrlHelper::rewrite_relative($url, '/favicon.ico');
 
 			if ($favicon_url)
-							array_push($favicon_urls, $favicon_url);
+				$favicon_urls[] = $favicon_url;
 		}
 
 		return $favicon_urls;
 	}
 
 	/**
-	 * @see https://community.tt-rss.org/t/problem-with-img-srcset/3519
-	 *
-	 * @return array<int, array<string, string>> An array of srcset subitem arrays with keys "url" and "size"
+	 * @return array<int, array{url: string, size: string}> An array of srcset subitem arrays
 	 */
 	static function decode_srcset(string $srcset): array {
 		$matches = [];
@@ -2005,7 +1985,7 @@ class RSSUtils {
 	}
 
 	/**
-	 * @param array<int, array<string, string>> $matches An array of srcset subitem arrays with keys "url" and "size"
+	 * @param array<int, array{url: string, size: string}> $matches An array of srcset subitem arrays
 	 */
 	static function encode_srcset(array $matches): string {
 		return implode(',', array_map(fn(array $m) => trim($m['url']) . ' ' . trim($m['size']), $matches));

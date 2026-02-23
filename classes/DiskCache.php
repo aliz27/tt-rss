@@ -356,6 +356,10 @@ class DiskCache implements Cache_Adapter {
 		header("Content-Disposition: inline; filename=\"{$filename}{$fake_extension}\"");
 		header("Content-type: $mimetype");
 
+		$size = $this->get_size($filename);
+		if ($size && $size > 0)
+			header("Content-Length: $size");
+
 		$stamp_expires = gmdate("D, d M Y H:i:s",
 			(int)$this->get_mtime($filename) + 86400 * Config::get(Config::CACHE_MAX_DAYS)) . " GMT";
 
@@ -379,11 +383,7 @@ class DiskCache implements Cache_Adapter {
 
 	public function get_fake_extension(string $filename): string {
 		$mimetype = $this->adapter->get_mime_type(basename($filename));
-
-		if ($mimetype)
-			return $this->mimeMap[$mimetype] ?? "";
-		else
-			return "";
+		return $mimetype ? ($this->mimeMap[$mimetype] ?? '') : '';
 	}
 
 	public function get_url(string $filename): string {
@@ -412,7 +412,7 @@ class DiskCache implements Cache_Adapter {
 
 			/** @var DOMElement $entry */
 			foreach ($entries as $entry) {
-				foreach (array('src', 'poster') as $attr) {
+				foreach (['src', 'poster'] as $attr) {
 					if ($entry->hasAttribute($attr)) {
 						$url = $entry->getAttribute($attr);
 						$cached_filename = sha1($url);

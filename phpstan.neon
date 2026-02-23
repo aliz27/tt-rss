@@ -1,44 +1,16 @@
 parameters:
-   level: 6
-   tmpDir: .phpstan-tmp
-   parallel:
-      maximumNumberOfProcesses: 4
-   reportUnmatchedIgnoredErrors: false
-   ignoreErrors:
-      # set_include_path detection issue
-      - message: '#"(autoload|colors|config|errorhandler|login_form|sessions)\.php"#'
-        identifier: requireOnce.fileNotFound
-
-      # undetected as DOMElement
-      - '#Call to an undefined method DOMNode::#'
-      - '#Access to an undefined property DOMNode::#'
-      - '#expects DOMElement, DOMNode given#'
-
-      # allow passing a 'strlen' string, etc. as the array_filter callback
-      - "/Parameter #2 \\$callback of function array_filter expects .+ '.+' given/"
-
-      - message: '##'
-        paths:
-          - lib/*
-          - vendor/*
-          - plugins/*/vendor/*
-          - plugins.local/*/vendor/*
-   excludePaths:
-      - lib/**/test/*
-      - lib/**/tests/*
-      - lib/dojo-src/*
-      - node_modules/*
-      - plugins.local/**/test/*
-      - plugins.local/**/tests/*
-      - plugins.local/*/vendor/intervention/*
-      - plugins.local/*/vendor/psr/log/*
-      - plugins.local/af_readability/*
-      - plugins.local/cache_s3/vendor/*
-      - plugins/**/test/*
-      - plugins/**/Test/*
-      - plugins/**/tests/*
-      - plugins/*/vendor/intervention/*
-      - plugins/*/vendor/psr/log/*
-      - vendor/**/*
-   paths:
-      - .
+    level: 6
+    tmpDir: .phpstan-tmp
+    paths:
+        - .
+    scanFiles:
+        - lib/gettext/gettext.inc.php
+        - lib/floIcon.php
+        - lib/MiniTemplator.class.php
+    excludePaths:
+        - lib
+        - node_modules (?)
+        - plugins.local
+        - tests
+        - vendor
+        - rector.php

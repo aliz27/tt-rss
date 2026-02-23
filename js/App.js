@@ -1,8 +1,7 @@
 'use strict';
 
-/* eslint-disable new-cap */
 /* global __, Article, Headlines, Filters, fox */
-/* global xhr, dojo, dijit, PluginHost, Notify, Feeds, Cookie */
+/* global xhr, PluginHost, Notify, Feeds, Cookie */
 /* global CommonDialogs, Plugins */
 
 const App = {
@@ -72,16 +71,20 @@ const App = {
                      ${this.attributes_to_string(attributes)} id="${App.escapeHtml(id)}">`
       },
       select_tag: function(name, value, values = [], attributes = {}, id = "") {
+         value = String(value);
+
          return `
             <select name="${name}" dojoType="fox.form.Select" id="${App.escapeHtml(id)}" ${this.attributes_to_string(attributes)}>
-               ${values.map((v) =>
-                  `<option ${v == value ? 'selected="selected"' : ''} value="${App.escapeHtml(v)}">${App.escapeHtml(v)}</option>`
-               ).join("")}
+               ${values.map((v) => {
+                  v = String(v);
+                  return `<option ${v === value ? 'selected="selected"' : ''} value="${App.escapeHtml(v)}">${App.escapeHtml(v)}</option>`
+               }).join("")}
             </select>
          `
       },
       select_hash: function(name, value, values = {}, attributes = {}, id = "", params = {}) {
 			let keys = Object.keys(values);
+			value = String(value);
 
 			if (params.numeric_sort)
 				keys = keys.sort((a,b) => a - b);
@@ -89,7 +92,7 @@ const App = {
          return `
             <select name="${name}" dojoType="fox.form.Select" id="${App.escapeHtml(id)}" ${this.attributes_to_string(attributes)}>
                ${keys.map((vk) =>
-                     `<option ${vk == value ? 'selected="selected"' : ''} value="${App.escapeHtml(vk)}">${App.escapeHtml(values[vk])}</option>`
+                     `<option ${vk === value ? 'selected="selected"' : ''} value="${App.escapeHtml(vk)}">${App.escapeHtml(values[vk])}</option>`
                ).join("")}
             </select>
          `
@@ -137,12 +140,15 @@ const App = {
          }
       }
    },
+   /** @deprecated use document.getElementById */
    byId: function(id) {
       return document.getElementById(id);
    },
+   /** @deprecated use document.querySelector */
    find: function(query) {
       return document.querySelector(query)
    },
+   /** @deprecated use document.querySelectorAll */
    findAll: function(query) {
       return document.querySelectorAll(query);
    },
@@ -169,8 +175,6 @@ const App = {
 		this._initParams[k] = v;
 	},
 	nightModeChanged: function(is_night, link, retry = 0) {
-		console.log("nightModeChanged: night mode changed to", is_night, "retry", retry);
-
 		if (link) {
 			if (retry < 15) {
 				window.clearTimeout(this._night_mode_retry_timeout);
@@ -190,14 +194,14 @@ const App = {
 		}
 	},
 	setupNightModeDetection: function(callback) {
-		if (!App.byId("theme_css")) {
+		if (!document.getElementById("theme_css")) {
 			const mql = window.matchMedia('(prefers-color-scheme: dark)');
 
 			try {
 				mql.addEventListener("change", () => {
-					this.nightModeChanged(mql.matches, App.byId("theme_auto_css"));
+					this.nightModeChanged(mql.matches, document.getElementById("theme_auto_css"));
 				});
-			} catch (e) {
+			} catch {
 				console.warn("exception while trying to set MQL event listener");
 			}
 
@@ -207,7 +211,7 @@ const App = {
 
 			if (callback) {
 						link.onload = function() {
-							document.querySelector("body").removeClassName("css_loading");
+							document.body.classList.remove('css_loading');
 							callback();
 						};
 
@@ -218,9 +222,9 @@ const App = {
 
 			this.nightModeChanged(mql.matches, link);
 
-			document.querySelector("head").appendChild(link);
+			document.head.prepend(link);
 		} else {
-			document.querySelector("body").removeClassName("css_loading");
+			document.body.classList.remove('css_loading');
 
 			if (callback) callback();
 		}
@@ -277,7 +281,7 @@ const App = {
 		try {
          const results = new RegExp('[?&]' + name + '=([^&#]*)').exec(window.location.href);
          return decodeURIComponent(results[1].replace(/\+/g, " ")) || 0;
-      } catch (e) {
+      } catch {
          return 0;
       }
 	},
@@ -295,7 +299,7 @@ const App = {
 			dijit.byId("loading_bar").update({progress: this._loading_progress});
 
 		if (this._loading_progress >= 90) {
-			App.byId("overlay").hide();
+			document.getElementById("overlay").hide();
 		}
 
 	},
@@ -332,8 +336,8 @@ const App = {
 		const hotkeys_map = this.getInitParam("hotkeys");
 
 		for (const seq in hotkeys_map[1]) {
-			if (hotkeys_map[1].hasOwnProperty(seq)) {
-				if (seq == sequence) {
+			if (Object.prototype.hasOwnProperty.call(hotkeys_map[1], seq)) {
+				if (seq === sequence) {
 					return hotkeys_map[1][seq];
 				}
 			}
@@ -345,14 +349,14 @@ const App = {
 		const keycode = event.which;
 		const keychar = String.fromCharCode(keycode);
 
-		if (keycode == 27) { // escape and drop prefix
+		if (keycode === 27) { // escape and drop prefix
 			this.hotkey_prefix = false;
 		}
 
-		if (!this.hotkey_prefix && hotkeys_map[0].indexOf(keychar) != -1) {
+		if (!this.hotkey_prefix && hotkeys_map[0].indexOf(keychar) !== -1) {
 
 			this.hotkey_prefix = keychar;
-			App.byId("cmdline").innerHTML = keychar;
+			document.getElementById("cmdline").innerHTML = keychar;
 			Element.show("cmdline");
 
 			window.clearTimeout(this.hotkey_prefix_timeout);
@@ -370,7 +374,7 @@ const App = {
 
 		let hotkey_name = "";
 
-		if (event.type == "keydown") {
+		if (event.type === 'keydown') {
 			hotkey_name = "(" + keycode + ")";
 
 			// ensure ^*char notation
@@ -394,8 +398,6 @@ const App = {
 			action_name = this.getActionByHotkeySequence(hotkey_full);
 		}
 
-		console.log('keyeventToAction', hotkey_full, '=>', action_name);
-
 		return action_name;
 	},
 	cleanupMemory: function(root) {
@@ -405,46 +407,70 @@ const App = {
 			dojo.destroy(d.domNode);
 		});
 
-		App.findAll("#" + root + " *").forEach(function (i) {
+		document.querySelectorAll(`#${root} *`).forEach(function (i) {
 			i.parentNode ? i.parentNode.removeChild(i) : true;
 		});
    },
    // htmlspecialchars()-alike for headlines data-content attribute
    escapeHtml: function(p) {
-      if (typeof p == "string") {
-         const map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-         };
-
-         return p.replace(/[&<>"']/g, function(m) { return map[m]; });
-      } else {
+      if (typeof p !== 'string')
          return p;
+
+      const map = {
+         '&': '&amp;',
+         '<': '&lt;',
+         '>': '&gt;',
+         '"': '&quot;',
+         "'": '&#x27;',
+         '/': '&#x2F;',
+      };
+
+      return p.replace(/[&<>"'/]/g, m => map[m]);
+   },
+   /**
+    * Sanitize a URL for safe use in href attributes and window.open()
+    * @param {string} url - URL to sanitize
+    * @param {string} fallback - Optional fallback value if URL is invalid (default: empty string)
+    * @return {string} Safe URL or fallback
+    */
+   sanitizeUrl: function(url, fallback = '') {
+      if (!url || typeof url !== 'string') return fallback;
+
+      // Remove NULL bytes and other control characters
+      // eslint-disable-next-line no-control-regex
+      const cleaned = url.replace(/[\x00-\x1F\x7F]/g, '');
+
+      const trimmed = cleaned.trim();
+      if (!trimmed) return fallback;
+
+      return /^https?:\/\/.+/i.test(trimmed) ? trimmed : fallback;
+   },
+   openUrl: function(url) {
+      const sanitized = this.sanitizeUrl(url);
+      if (sanitized) {
+         const w = window.open(sanitized);
+         w.opener = null;
       }
    },
-   // http://stackoverflow.com/questions/6251937/how-to-get-selecteduser-highlighted-text-in-contenteditable-element-and-replac
+   unescapeHtml: function(p) {
+      if (typeof p !== 'string' || p.indexOf('&') === -1)
+         return p;
+
+      return p.replace(/&(?:amp|lt|gt|quot|#x27|#x2F|#039|#47);/g, function(entity) {
+         switch (entity) {
+            case '&amp;': return '&';
+            case '&lt;': return '<';
+            case '&gt;': return '>';
+            case '&quot;': return '"';
+            case '&#x27;': case '&#039;': return "'";
+            case '&#x2F;': case '&#47;': return '/';
+            default: return entity;
+         }
+      });
+   },
    getSelectedText: function() {
-      let text = "";
-
-      if (typeof window.getSelection != "undefined") {
-         const sel = window.getSelection();
-         if (sel.rangeCount) {
-            const container = document.createElement("div");
-            for (let i = 0, len = sel.rangeCount; i < len; ++i) {
-               container.appendChild(sel.getRangeAt(i).cloneContents());
-            }
-            text = container.innerHTML;
-         }
-      } else if (typeof document.selection != "undefined") {
-         if (document.selection.type == "Text") {
-            text = document.selection.createRange().textText;
-         }
-      }
-
-      return text.stripTags();
+      const sel = window.getSelection();
+      return sel ? sel.toString().trim() : "";
    },
    displayIfChecked: function(checkbox, elemId) {
       if (checkbox.checked) {
@@ -465,7 +491,7 @@ const App = {
    },
 	handleRpcJson: function(reply) {
 
-		const netalert = App.find(".net-alert");
+		const netalert = document.querySelector('.net-alert');
 
       if (reply) {
          const error = reply['error'];
@@ -474,21 +500,20 @@ const App = {
          const counters = reply['counters'];
          const runtime_info = reply['runtime-info'];
 
-         if (error && error.code && error.code != App.Error.E_SUCCESS) {
+         if (error && error.code && error.code !== App.Error.E_SUCCESS) {
             console.warn("handleRpcJson: fatal error", error);
             this.Error.fatal(error.code, error.params);
             return false;
          }
 
-         if (seq && this.get_seq() != seq) {
+         if (seq && this.get_seq() !== seq) {
             console.warn("handleRpcJson: sequence mismatch: ", seq, '!=', this.get_seq());
             return false;
          }
 
          // not in preferences
-         if (typeof Feeds != "undefined") {
-            if (message == "UPDATE_COUNTERS") {
-               console.log("need to refresh counters for", reply.feeds);
+         if (typeof Feeds !== 'undefined') {
+            if (message === 'UPDATE_COUNTERS') {
                Feeds.requestCounters(reply.feeds);
             }
 
@@ -514,30 +539,27 @@ const App = {
 		Object.keys(data).forEach((k) => {
          const v = data[k];
 
-         console.log("RI:", k, "=>", v);
-
-         if (k == "daemon_is_running" && v != 1) {
+         if (k === "daemon_is_running" && v !== 1) {
             Notify.error("Update daemon is not running.", true);
             return;
          }
 
-         if (k == "recent_log_events") {
-            const alert = App.find(".log-alert");
+         if (k === "recent_log_events") {
+            const alert = document.querySelector('.log-alert');
 
             if (alert) {
                v > 0 ? alert.show() : alert.hide();
             }
          }
 
-         if (k == "daemon_stamp_ok" && v != 1) {
+         if (k === "daemon_stamp_ok" && v !== 1) {
             Notify.error("Update daemon is not updating feeds.", true);
             return;
          }
 
-         if (typeof Feeds != "undefined") {
-            if (k == "max_feed_id" || k == "num_feeds") {
-               if (this.getInitParam(k) && this.getInitParam(k) != v) {
-                  console.log("feed count changed, need to reload feedlist:", this.getInitParam(k), v);
+         if (typeof Feeds !== 'undefined') {
+            if (k === "max_feed_id" || k === "num_feeds") {
+               if (this.getInitParam(k) && this.getInitParam(k) !== v) {
                   Feeds.reload();
                }
             }
@@ -554,7 +576,6 @@ const App = {
 		const params = reply['init-params'];
 
 		if (params) {
-			console.log('reading init-params...');
 
 			Object.keys(params).forEach((k) => {
             switch (k) {
@@ -563,7 +584,7 @@ const App = {
                   break;
                case "cdm_auto_catchup":
                   {
-                     const headlines = App.byId("headlines-frame");
+                     const headlines = document.getElementById("headlines-frame");
 
                   // we could be in preferences
                      if (headlines)
@@ -586,7 +607,6 @@ const App = {
                   break;
             }
 
-            console.log("IP:", k, "=>", params[k]);
             this.setInitParam(k, params[k]);
 			});
 
@@ -598,7 +618,6 @@ const App = {
       const translations = reply['translations'];
 
       if (translations) {
-         console.log('reading translations...');
          App._translations = translations;
       }
 
@@ -610,13 +629,13 @@ const App = {
       E_SCHEMA_MISMATCH: "E_SCHEMA_MISMATCH",
       E_URL_SCHEME_MISMATCH: "E_URL_SCHEME_MISMATCH",
 		fatal: function (error, params = {}) {
-         if (error == App.Error.E_UNAUTHORIZED) {
+         if (error === App.Error.E_UNAUTHORIZED) {
             window.location.href = "index.php";
             return;
-         } else if (error == App.Error.E_SCHEMA_MISMATCH) {
+         } else if (error === App.Error.E_SCHEMA_MISMATCH) {
             window.location.href = "public.php?op=dbupdate";
             return;
-         } else if (error == App.Error.E_URL_SCHEME_MISMATCH) {
+         } else if (error === App.Error.E_URL_SCHEME_MISMATCH) {
             params.description = __("URL scheme reported by your browser (%a) doesn't match server-configured SELF_URL_PATH (%b), check X-Forwarded-Proto.")
                .replace("%a", params.client_scheme)
                .replace("%b", params.server_scheme);
@@ -639,10 +658,7 @@ const App = {
 						file: params.filename ? params.filename : error.fileName,
 						line: params.lineno ? params.lineno : error.lineNumber,
 						msg: message,
-						context: error.stack},
-					(reply) => {
-						console.warn("[Error.report] log response", reply);
-					});
+						context: error.stack});
 			} catch (re) {
 				console.error("[Error.report] exception while saving logging error on server", re);
 			}
@@ -703,14 +719,13 @@ const App = {
       this.is_prefs = is_prefs;
       window.onerror = this.Error.onWindowError;
 
+      /* global __default_dark_theme, __default_light_theme */
       this.setInitParam("csrf_token", __csrf_token);
       this.setInitParam("default_light_theme", __default_light_theme);
       this.setInitParam("default_dark_theme", __default_dark_theme);
 
       this.setupNightModeDetection(() => {
          parser.parse();
-
-         console.log('is_prefs', this.is_prefs);
 
          if (!this.checkBrowserFeatures())
             return;
@@ -745,12 +760,12 @@ const App = {
          }
       });
 
-      if (typeof Promise.allSettled == "undefined") {
+      if (typeof Promise.allSettled === "undefined") {
          errorMsg = `Browser check failed: <code>Promise.allSettled</code> is not defined.`;
          throw new Error(errorMsg);
       }
 
-      return errorMsg == "";
+      return errorMsg === "";
    },
    updateRuntimeInfo: function() {
       xhr.json("backend.php", {op: "RPC", method: "getruntimeinfo"}, () => {
@@ -846,9 +861,12 @@ const App = {
          Headlines.initScrollHandler();
 
          if (this.getInitParam('check_for_updates')) {
-            window.setInterval(() => {
-               this.checkForUpdates();
-            }, 3600 * 1000);
+			window.setTimeout(() => {
+              this.checkForUpdates();
+              window.setInterval(() => {
+                 this.checkForUpdates();
+              }, 3600 * 1000);
+            }, 60 * 1000);
          }
 
          PluginHost.run(PluginHost.HOOK_INIT_COMPLETE, null);
@@ -866,33 +884,25 @@ const App = {
       console.log("second stage ok");
 
    },
-   checkForUpdates: function() {
-      console.log('checking for updates...');
+	checkForUpdates: function() {
+		xhr.json("backend.php", {op: 'RPC', method: 'checkforupdates'})
+			.then((reply) => {
+				const ttrss_icon_a = document.getElementById('updates-available');
+				const plugin_icon_a = document.getElementById('plugin-updates-available');
 
-      xhr.json("backend.php", {op: 'RPC', method: 'checkforupdates'})
-         .then((reply) => {
-            console.log('update reply', reply);
+				if (reply.changeset.id) {
+					ttrss_icon_a.href = reply.changeset.compare_url;
+					ttrss_icon_a.show();
+				} else {
+					ttrss_icon_a.hide();
+				}
 
-            const icon = App.byId("updates-available");
-
-            if (reply.changeset.id || reply.plugins.length > 0) {
-               icon.show();
-
-               const tips = [];
-
-               if (reply.changeset.id)
-                  tips.push(__("Updates for Tiny Tiny RSS are available."));
-
-               if (reply.plugins.length > 0)
-                  tips.push(__("Updates for some local plugins are available."));
-
-               icon.setAttribute("title", tips.join("\n"));
-
-            } else {
-               icon.hide();
-            }
-         });
-   },
+				if (reply.plugins.length)
+					plugin_icon_a.show()
+				else
+					plugin_icon_a.hide();
+			});
+	},
    updateTitle: function() {
       let tmp = "Tiny Tiny RSS";
 
@@ -902,25 +912,35 @@ const App = {
 
       document.title = tmp;
    },
-   hotkeyHandler: function(event) {
-      if (event.target.nodeName == "INPUT" || event.target.nodeName == "TEXTAREA") return;
+	hotkeyHandler: function(event) {
+		if (event.target.nodeName === 'TEXTAREA')
+			return;
 
-      // Arrow buttons and escape are not reported via keypress, handle them via keydown.
-      // escape = 27, left = 37, up = 38, right = 39, down = 40, pgup = 33, pgdn = 34, insert = 45, delete = 46
-      if (event.type == "keydown" && event.which != 27 && (event.which < 33 || event.which > 46)) return;
+		if (event.target.nodeName === 'INPUT') {
+			const type = (event.target.type || 'text').toLowerCase();
+			const text_input_types = ['text', 'password', 'email', 'search', 'tel', 'url', 'number', 'date', 'datetime-local', 'month', 'time', 'week'];
 
-      const action_name = this.keyeventToAction(event);
+			if (text_input_types.includes(type))
+				return;
+		}
 
-      if (action_name) {
-         const action_func = this.hotkey_actions[action_name];
+		// Arrow buttons and escape are not reported via keypress, handle them via keydown.
+		if (event.type === 'keydown'
+			&& !['Escape', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'PageUp', 'PageDown', 'Insert', 'Delete'].includes(event.key))
+			return;
 
-         if (action_func != null) {
-            action_func(event);
-            event.stopPropagation();
-            return false;
-         }
-      }
-   },
+		const action_name = this.keyeventToAction(event);
+
+		if (action_name) {
+			const action_func = this.hotkey_actions[action_name];
+
+			if (typeof action_func === 'function') {
+				action_func(event);
+				event.stopPropagation();
+				return false;
+			}
+		}
+	},
 	isWideScreenMode: function() {
 		return !!this._widescreen_mode;
 	},
@@ -934,7 +954,7 @@ const App = {
 		this._widescreen_mode = wide;
 
       const article_id = Article.getActive();
-      const headlines_frame = App.byId("headlines-frame");
+      const headlines_frame = document.getElementById("headlines-frame");
       const content_insert = dijit.byId("content-insert");
 
       // TODO: setStyle stuff should probably be handled by CSS
@@ -1121,7 +1141,7 @@ const App = {
             }
          };
          this.hotkey_actions["email_article"] = () => {
-            if (typeof Plugins.Mail != "undefined") {
+            if (typeof Plugins.Mail !== "undefined") {
                Plugins.Mail.onHotkey(Headlines.getSelected());
             } else {
                alert(__("Please enable mail or mailto plugin first."));
@@ -1146,7 +1166,7 @@ const App = {
             Headlines.select('none');
          };
          this.hotkey_actions["feed_refresh"] = () => {
-            if (typeof Feeds.getActive() != "undefined") {
+            if (typeof Feeds.getActive() !== "undefined") {
                Feeds.open({feed: Feeds.getActive(), is_cat: Feeds.activeIsCat()});
             }
          };
@@ -1192,7 +1212,7 @@ const App = {
                CommonDialogs.editFeed(Feeds.getActive());
          };
          this.hotkey_actions["feed_catchup"] = () => {
-            if (typeof Feeds.getActive() != "undefined") {
+            if (typeof Feeds.getActive() !== "undefined") {
                Feeds.catchupCurrent();
             }
          };
@@ -1236,15 +1256,11 @@ const App = {
          this.hotkey_actions["goto_prefs"] = () => {
             App.openPreferences();
          };
-         this.hotkey_actions["select_article_cursor"] = () => {
-            const id = Article.getUnderPointer();
-            if (id) {
-               const row = App.byId(`RROW-${id}`);
-
-               if (row)
-                  row.toggleClassName("Selected");
-            }
-         };
+			this.hotkey_actions['select_article_cursor'] = () => {
+				const id = Article.getUnderPointer();
+				if (id)
+					document.getElementById(`RROW-${id}`)?.classList.toggle('Selected');
+			};
          this.hotkey_actions["create_label"] = () => {
             CommonDialogs.addLabel();
          };
@@ -1255,7 +1271,7 @@ const App = {
             Feeds.toggle();
          };
          this.hotkey_actions["toggle_full_text"] = () => {
-            if (typeof Plugins.Af_Readability != "undefined") {
+            if (typeof Plugins.Af_Readability !== "undefined") {
                if (Article.getActive())
                   Plugins.Af_Readability.embed(Article.getActive());
             } else {
@@ -1348,7 +1364,7 @@ const App = {
             this.hotkeyHelp()
             break;
          default:
-            console.log("quickMenuGo: unknown action: " + opid);
+            console.warn("quickMenuGo: unknown action:", opid);
       }
    },
 }

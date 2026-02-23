@@ -3,7 +3,7 @@ class Mailer {
 	private string $last_error = "";
 
 	/**
-	 * @param array<string, mixed> $params
+	 * @param array{to_name?: string, to_address: string, subject: string, message: string, from_name?: string, from_address?: string, headers?: array<string, mixed>} $params
 	 * @return bool|int bool if the default mail function handled the request, otherwise an int as described in Mailer#mail()
 	 */
 	function mail(array $params): bool|int {
@@ -21,7 +21,7 @@ class Mailer {
 		$to_combined = $to_name ? "$to_name <$to_address>" : $to_address;
 
 		if (Config::get(Config::LOG_SENT_MAIL))
-			Logger::log(E_USER_NOTICE, "Sending mail from $from_combined to $to_combined [$subject]: $message");
+			Logger::log(E_USER_NOTICE, "Sending email from $from_combined to $to_combined [$subject]: $message");
 
 		// HOOK_SEND_MAIL plugin instructions:
 		// 1. return 1 or true if mail is handled
@@ -43,12 +43,14 @@ class Mailer {
 			++$hooks_tried;
 		}
 
-		$headers = [ "From: $from_combined", "Content-Type: text/plain; charset=UTF-8" ];
-
-		$rc = mail($to_combined, $subject, $message, implode("\r\n", [...$headers, ...$additional_headers]));
+		$rc = mail($to_combined, $subject, $message, implode("\r\n", [
+			"From: $from_combined",
+			'Content-Type: text/plain; charset=UTF-8',
+			...$additional_headers,
+		]));
 
 		if (!$rc) {
-			$this->set_error(error_get_last()['message'] ?? T_sprintf("Unknown error while sending mail. Hooks tried: %d.", $hooks_tried));
+			$this->set_error(error_get_last()['message'] ?? T_sprintf("Unknown error while sending email. Hooks tried: %d.", $hooks_tried));
 		}
 
 		return $rc;
@@ -56,7 +58,7 @@ class Mailer {
 
 	function set_error(string $message): void {
 		$this->last_error = $message;
-		user_error("Error sending mail: $message", E_USER_WARNING);
+		user_error("Error sending email: $message", E_USER_WARNING);
 	}
 
 	function error(): string {

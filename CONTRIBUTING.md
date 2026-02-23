@@ -1,39 +1,23 @@
-## Contributing code the right way
+Contributing
+============
 
-TLDR: it works *almost* like Github.
+Thanks for your interest in contributing to the Tiny Tiny RSS (tt-rss) project!  Contributions are welcome.
 
-Due to spam, new Gitlab users are set to [external](https://docs.gitlab.com/ee/user/admin_area/external_users.html). In order to do anything, you'll need to ask for your account to be promoted. Sorry for the inconvenience.
+Here are some ideas to get you started:
 
-1. Register on the [Gitlab](https://gitlab.tt-rss.org);
-2. Post on the forums asking for your account to be promoted;
-3. Fork the repository you're interested in;
-4. Do the needful;
-6. File a PR against master branch and verify that CI pipeline (especially, PHPStan) passes;
-
-If you have any other questions, see this [forum thread](https://discourse.tt-rss.org/t/how-to-contribute-code-via-pull-requests-on-git-tt-rss-org/1850).
-
-Please don't inline patches in forum posts, attach files instead (``.patch`` or ``.diff`` file extensions should work).
-
-### FAQ
-
-#### How do I push or pull without SSH?
-
-You can't use SSH directly because tt-rss Gitlab is behind Cloudflare. You can use HTTPS with personal access tokens instead.
-
-Create a personal access token in [Gitlab preferences](https://gitlab.tt-rss.org/-/user_settings/personal_access_tokens);
-
-Optionally, configure Git to transparently work with tt-rss Gitlab repositories using HTTPS:
-
-```
-git config --global \
-  --add url."https://gitlab-token:your-personal-access-token@gitlab.tt-rss.org/".insteadOf \
-  "git@gitlab.tt-rss.org:"
-```
-
-Alternatively, checkout over HTTPS while adding the token manually:
-
-```
-git clone https://gitlab-token:your-personal-access-token@gitlab.tt-rss.org/tt-rss/tt-rss.git tt-rss
-```
-
-That's it.
+* Help others, especially those getting started with tt-rss.
+* [Report issues](https://github.com/tt-rss/tt-rss/issues), and/or help troubleshoot issues (e.g. confirm the issue, provide additional information,
+  identify as a duplicate issue, etc.).
+* Help improve the documentation.
+  * For now this is in two places: [this project's wiki](https://github.com/tt-rss/tt-rss/wiki) and
+    https://github.com/tt-rss/tt-rss.github.io (content backing https://tt-rss.org; converted from the aforementioned wiki content).
+    The long-term plan is to fully switch to the latter, enabling direct contributions.
+* Help improve the translations [via Weblate](https://hosted.weblate.org/engage/tt-rss/).
+  * Related: If something shows up in tt-rss and isn't making its way into Weblate, [report the issue](https://github.com/tt-rss/tt-rss/issues)
+    so translation coverage can (potentially) be improved.
+* Help improve the code.
+  * Development primarily happens in https://github.com/tt-rss/tt-rss, but some plugins are in their own repository under https://github.com/tt-rss/.
+  * Keep in mind major changes (particularly to the user experience) are unlikely to be accepted unless discussed and agreed upon beforehand.
+    Plugins, etc. are generally preferred over modifying the core project when customization is desired.
+  * If there are any questions about whether something would be accepted, it'd be best to first
+    [start a discussion](https://github.com/tt-rss/tt-rss/discussions) or [open an issue](https://github.com/tt-rss/tt-rss/issues).

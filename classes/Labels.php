@@ -38,7 +38,7 @@ class Labels
 	}
 
 	/**
-	 * @return array<int, array<string, string>>
+	 * @return array<int, array{id: int, fg_color: string, bg_color: string, caption: string}>
 	 */
 	static function get_as_hash(int $owner_uid): array {
 		$rv = [];
@@ -52,10 +52,10 @@ class Labels
 	}
 
 	/**
-	 * @return array<int, array<string, string>> An array of label detail arrays
+	 * @return array<int, array{id: int, fg_color: string, bg_color: string, caption: string}> An array of label detail arrays
 	 */
 	static function get_all(int $owner_uid)	{
-		$rv = array();
+		$rv = [];
 
 		$pdo = Db::pdo();
 
@@ -63,15 +63,14 @@ class Labels
 			WHERE owner_uid = ? ORDER BY caption");
 		$sth->execute([$owner_uid]);
 
-		while ($line = $sth->fetch(PDO::FETCH_ASSOC)) {
-			array_push($rv, $line);
-		}
+		while ($line = $sth->fetch(PDO::FETCH_ASSOC))
+			$rv[] = $line;
 
 		return $rv;
 	}
 
 	/**
-	 * @param array{'no-labels': 1}|array<int, array<int, array{0: int, 1: string, 2: string, 3: string}>> $labels
+	 * @param array{'no-labels': 1}|array<int, array{int, string, string, string}> $labels
 	 * [label_id, caption, fg_color, bg_color]
 	 *
 	 * @see Article::_get_labels()
@@ -158,7 +157,7 @@ class Labels
 
 		try {
 			$pdo->beginTransaction();
-		} catch (Exception $e) {
+		} catch (Exception) {
 			$tr_in_progress = true;
 		}
 
@@ -207,7 +206,7 @@ class Labels
 
 		try {
 			$pdo->beginTransaction();
-		} catch (Exception $e) {
+		} catch (Exception) {
 			$tr_in_progress = true;
 		}
 

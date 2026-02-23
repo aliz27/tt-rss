@@ -1,9 +1,7 @@
 'use strict'
 
-/* eslint-disable no-new */
-
 /* global __, App, Article, Lists, fox */
-/* global xhr, dojo, dijit, Notify, Feeds */
+/* global xhr, Notify, Feeds */
 
 /* exported Filters */
 const	Filters = {
@@ -61,7 +59,7 @@ const	Filters = {
 									// all done-- either the backend found no more pre-filtering entries, or test limits were reached
 									test_dialog.domNode.querySelector(".loading-indicator").hide();
 
-									if (test_dialog.results == 0) {
+									if (test_dialog.results === 0) {
 										results_list.innerHTML = `<li class="text-center text-muted">
 											${__('No recent articles matching this filter have been found.')}</li>`;
 
@@ -72,11 +70,9 @@ const	Filters = {
 									}
 
 								} else if (!result) {
-									console.log("getTestResults: can't parse results object");
+									console.error("getTestResults: can't parse results object");
 									test_dialog.domNode.querySelector(".loading-indicator").hide();
 									Notify.error("Error while trying to get filter test results.");
-								} else {
-									console.log("getTestResults: dialog closed, bailing out.");
 								}
 							} catch (e) {
 								App.Error.report(e);
@@ -111,7 +107,7 @@ const	Filters = {
 				xhr.post("backend.php", {op: "Pref_Filters", method: "printrulename", rule: rule}, (reply) => {
 					try {
 						const li = document.createElement('li');
-						li.addClassName("rule");
+						li.classList.add('rule');
 
 						li.innerHTML = `${App.FormFields.checkbox_tag("", false, "", {onclick: 'Lists.onRowChecked(this)'})}
 								<span class="name" onclick='App.dialogOf(this).onRuleClicked(this)'>${reply}</span>
@@ -132,9 +128,9 @@ const	Filters = {
 			insertAction: function(parentNode, replaceNode) {
 				const form = document.forms["filter_new_action_form"];
 
-				if (form.action_id.value == 7) {
+				if (form.action_id.value === '7') {
 					form.action_param.value = form.action_param_label.value;
-				} else if (form.action_id.value == 9) {
+				} else if (form.action_id.value === '9') {
 					form.action_param.value = form.action_param_plugin.value;
 				}
 
@@ -143,10 +139,10 @@ const	Filters = {
 				xhr.post("backend.php", { op: "Pref_Filters", method: "printactionname", action: action }, (reply) => {
 					try {
 						const li = document.createElement('li');
-						li.addClassName("action");
+						li.classList.add('action');
 
 						li.innerHTML = `${App.FormFields.checkbox_tag("", false, "", {onclick: 'Lists.onRowChecked(this)'})}
-								<span class="name" onclick='App.dialogOf(this).onActionClicked(this)'>${reply}</span>
+								<span class="name" onclick='App.dialogOf(this).onActionClicked(this)'>${App.escapeHtml(reply)}</span>
 								<span class="payload">${App.FormFields.hidden_tag("action[]", action)}</span>`;
 
 						dojo.parser.parse(li);
@@ -168,7 +164,7 @@ const	Filters = {
 					title: ruleStr ? __("Edit rule") : __("Add rule"),
 					execute: function () {
 						if (this.validate()) {
-							dialog.insertRule(App.byId("filterDlg_Matches"), replaceNode);
+							dialog.insertRule(document.getElementById("filterDlg_Matches"), replaceNode);
 							this.hide();
 						}
 					},
@@ -190,8 +186,6 @@ const	Filters = {
 							inverse: false,
 						};
 					}
-
-					console.log(rule, dialog.filter_info);
 
 					xhr.json("backend.php", {op: "Pref_Filters", method: "editrule", ids: rule.feed_id.join(",")}, function (editrule) {
 						edit_rule_dialog.attr('content',
@@ -226,7 +220,7 @@ const	Filters = {
 
 								<footer>
 									${App.FormFields.button_tag(App.FormFields.icon("help") + " " + __("More info"), "", {class: 'pull-left alt-info',
-										onclick: "window.open('https://tt-rss.org/wiki/ContentFilters')"})}
+										onclick: "window.open('https://tt-rss.org/docs/Content-Filters.html', '_blank', 'noreferrer')"})}
 									${App.FormFields.submit_tag(App.FormFields.icon("save") + " " + __("Save"), {onclick: "App.dialogOf(this).execute()"})}
 									${App.FormFields.cancel_dialog_tag(__("Cancel"))}
 								</footer>
@@ -254,17 +248,17 @@ const	Filters = {
 						dijit.byId("filterDlg_actionParamPlugin").domNode.hide();
 
 						// if selected action supports parameters, enable params field
-						if (action == dialog.ACTION_LABEL) {
+						if (action === dialog.ACTION_LABEL) {
 							dijit.byId("filterDlg_actionParamLabel").domNode.show();
-						} else if (action == dialog.ACTION_PLUGIN) {
+						} else if (action === dialog.ACTION_PLUGIN) {
 							dijit.byId("filterDlg_actionParamPlugin").domNode.show();
-						} else if (dialog.PARAM_ACTIONS.indexOf(action) != -1) {
+						} else if (dialog.PARAM_ACTIONS.indexOf(action) !== -1) {
 							dijit.byId("filterDlg_actionParam").domNode.show();
 						}
 					},
 					execute: function () {
 						if (this.validate()) {
-							dialog.insertAction(App.byId("filterDlg_Actions"), replaceNode);
+							dialog.insertAction(document.getElementById("filterDlg_Actions"), replaceNode);
 							this.hide();
 						}
 					},
@@ -284,8 +278,6 @@ const	Filters = {
 							action_param: ""
 						};
 					}
-
-					console.log(action);
 
 					edit_action_dialog.attr('content',
 					`
@@ -376,14 +368,10 @@ const	Filters = {
 				this.editRule();
 			},
 			deleteAction: function () {
-				App.findAll("#filterDlg_Actions li[class*=Selected]").forEach(function (e) {
-					e.parentNode.removeChild(e)
-				});
+				document.querySelectorAll('#filterDlg_Actions li[class*=Selected]').forEach(e => e.parentNode.removeChild(e));
 			},
 			deleteRule: function () {
-				App.findAll("#filterDlg_Matches li[class*=Selected]").forEach(function (e) {
-					e.parentNode.removeChild(e)
-				});
+				document.querySelectorAll('#filterDlg_Matches li[class*=Selected]').forEach(e => e.parentNode.removeChild(e));
 			},
 			execute: function () {
 				if (this.validate()) {
@@ -527,9 +515,11 @@ const	Filters = {
 				`);
 
 				if (!App.isPrefs()) {
+					// TODO: This section isn't working as expected (under Firefox 143, at least).
+					// `selectedText` is always empty at this point (tested by selecting some article text).
 					const selectedText = App.getSelectedText();
 
-					if (selectedText != "") {
+					if (selectedText !== '') {
 						const feed_id = Feeds.activeIsCat() ? 'CAT:' + parseInt(Feeds.getActive()) :
 							Feeds.getActive();
 						const rule = {reg_exp: selectedText, feed_id: [feed_id], filter_type: 1};
@@ -544,12 +534,8 @@ const	Filters = {
 							if (reply && reply.title) title = reply.title;
 
 							if (title || Feeds.getActive() || Feeds.activeIsCat()) {
-								console.log(title + " " + Feeds.getActive());
-
-								const feed_id = Feeds.activeIsCat() ? 'CAT:' + parseInt(Feeds.getActive()) :
-									Feeds.getActive();
+								const feed_id = Feeds.activeIsCat() ? 'CAT:' + parseInt(Feeds.getActive()) : Feeds.getActive();
 								const rule = {reg_exp: title, feed_id: [feed_id], filter_type: 1};
-
 								dialog.editRule(null, dojo.toJson(rule));
 							}
 						});
@@ -561,3 +547,6 @@ const	Filters = {
 		dialog.show();
 	},
 };
+
+// Expose to global scope for Dojo widget onclick handlers (needed since Dojo 1.17.3)
+window.Filters = Filters;

@@ -1,9 +1,6 @@
 'use strict'
 
-/* eslint-disable new-cap */
-/* eslint-disable no-new */
-
-/* global __, dojo, dijit, Notify, App, Feeds, xhr, Tables, fox */
+/* global __, Notify, App, Feeds, xhr, Tables, fox */
 
 /* exported CommonDialogs */
 const	CommonDialogs = {
@@ -119,7 +116,7 @@ const	CommonDialogs = {
 								</form>
 							`,
 							show_error: function (msg, additional_info) {
-								const elem = App.byId("fadd_error_message");
+								const elem = document.getElementById("fadd_error_message");
 
 								elem.innerHTML = `${msg}${additional_info ? `<br><br><h4>${__('Additional information')}</h4>${additional_info}` : ''}`;
 
@@ -127,8 +124,6 @@ const	CommonDialogs = {
 							},
 							execute: function () {
 								if (this.validate()) {
-									console.log(dojo.objectToQuery(this.attr('value')));
-
 									const feed_url = this.attr('value').feed;
 
 									Element.show("feed_add_spinner");
@@ -147,8 +142,6 @@ const	CommonDialogs = {
 
 											Notify.close();
 											Element.hide("feed_add_spinner");
-
-											console.log(rc);
 
 											switch (parseInt(rc['code'])) {
 												case 0:
@@ -184,7 +177,7 @@ const	CommonDialogs = {
 														select.addOption({value: '', label: __("Expand to select feed")});
 
 														for (const feedUrl in feeds) {
-															if (feeds.hasOwnProperty(feedUrl)) {
+															if (Object.prototype.hasOwnProperty.call(feeds, feedUrl)) {
 																select.addOption({value: feedUrl, label: feeds[feedUrl]});
 															}
 														}
@@ -260,8 +253,8 @@ const	CommonDialogs = {
 						const sel_rows = this.getSelectedFeeds();
 
 						if (sel_rows.length > 0) {
-							if (confirm(__("Debug selected feeds?"))) {
-								Notify.progress("Opening debugger for selected feeds...", true);
+							if (sel_rows.length === 1 || confirm(__("Debug selected feeds?"))) {
+								Notify.progress("Opening debugger for selected feeds...", false);
 
 								for (let i = 0; i < sel_rows.length; i++) {
 									/* global __csrf_token */
@@ -332,7 +325,7 @@ const	CommonDialogs = {
 		addLabel: function() {
 			const caption = prompt(__("Please enter label caption:"), "");
 
-			if (caption != undefined && caption.trim().length > 0) {
+			if (caption && caption.trim().length > 0) {
 
 				const query = {op: "Pref_Labels", method: "add", caption: caption.trim()};
 
@@ -351,7 +344,7 @@ const	CommonDialogs = {
 
 			const msg = __("Unsubscribe from %s?").replace("%s", title);
 
-			if (typeof title == "undefined" || confirm(msg)) {
+			if (typeof title === "undefined" || confirm(msg)) {
 				Notify.progress("Removing feed...");
 
 				const query = {op: "Pref_Feeds", quiet: 1, method: "remove", ids: feed_id};
@@ -360,7 +353,7 @@ const	CommonDialogs = {
 					if (App.isPrefs()) {
 						dijit.byId("feedTree").reload();
 					} else {
-						if (feed_id == Feeds.getActive())
+						if (feed_id === Feeds.getActive())
 							setTimeout(() => {
 									Feeds.openDefaultFeed();
 								},
@@ -377,10 +370,6 @@ const	CommonDialogs = {
 			if (feed_id <= 0)
 				return alert(__("You can't edit this kind of feed."));
 
-			const query = {op: "Pref_Feeds", method: "editfeed", id: feed_id};
-
-			console.log("editFeed", query);
-
 			const dialog = new fox.SingleUseDialog({
 				id: "feedEditDlg",
 				title: __("Edit feed"),
@@ -396,10 +385,10 @@ const	CommonDialogs = {
                }
 				},
 				uploadIcon: function(input) {
-					if (input.files.length != 0) {
+					if (input.files.length !== 0) {
 						const icon_file = input.files[0];
 
-						if (icon_file.type.indexOf("image/") == -1) {
+						if (icon_file.type.indexOf("image/") === -1) {
 							alert(__("Please select an image file."));
 							return;
 						}
@@ -501,14 +490,14 @@ const	CommonDialogs = {
 
 				xhr.json("backend.php", {op: "Pref_Feeds", method: "editfeed", id: feed_id}, (reply) => {
 					const feed = reply.feed;
-					const is_readonly = reply.user.access_level == App.UserAccessLevels.ACCESS_LEVEL_READONLY;
+					const is_readonly = reply.user.access_level === App.UserAccessLevels.ACCESS_LEVEL_READONLY;
 
 					// for unsub prompt
 					dialog.feed_title = feed.title;
 
 					// options tab
 					const options = {
-						include_in_digest: [ feed.include_in_digest, __('Include in e-mail digest') ],
+						include_in_digest: [ feed.include_in_digest, __('Include in email digest') ],
 						always_display_enclosures: [ feed.always_display_enclosures, __('Always display image attachments') ],
 						hide_images: [ feed.hide_images, __('Do not embed media') ],
 						cache_images: [ feed.cache_images, __('Cache media') ],
@@ -690,9 +679,9 @@ const	CommonDialogs = {
 							</section>
 							<footer>
 								<button dojoType='dijit.form.Button' style='float : left' class='alt-info'
-									onclick='window.open("https://tt-rss.org/wiki/GeneratedFeeds")'>
+									onclick='window.open("https://tt-rss.org/docs/Generated-Feeds.html", "_blank", "noreferrer")'>
 									<i class='material-icons'>help</i> ${__("More info...")}</button>
-								<button dojoType='dijit.form.Button' onclick="return App.dialogOf(this).regenFeedKey('${feed}', '${is_cat}')">
+								<button dojoType='dijit.form.Button' onclick='return App.dialogOf(this).regenFeedKey(${JSON.stringify(feed)}, ${JSON.stringify(is_cat)})'>
 									${App.FormFields.icon("refresh")}
 									${__('Generate new URL')}
 								</button>
@@ -713,3 +702,6 @@ const	CommonDialogs = {
 			});
 		},
 	};
+
+// Expose to global scope for Dojo widget onclick handlers (needed since Dojo 1.17.3)
+window.CommonDialogs = CommonDialogs;

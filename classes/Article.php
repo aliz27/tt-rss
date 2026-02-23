@@ -12,8 +12,8 @@ class Article extends Handler_Protected {
 		$article = ORM::for_table('ttrss_entries')
 			->table_alias('e')
 			->join('ttrss_user_entries', [ 'ref_id', '=', 'e.id'], 'ue')
-				->where('ue.owner_uid', $_SESSION['uid'])
-				->find_one((int)$_REQUEST['id']);
+			->where('ue.owner_uid', $_SESSION['uid'])
+			->find_one((int)$_REQUEST['id']);
 
 		if ($article) {
 			$article_url = UrlHelper::validate($article->link);
@@ -22,10 +22,14 @@ class Article extends Handler_Protected {
 				header("Location: $article_url");
 				return;
 			}
+
+			header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+			print 'Article URL did not pass validation.  No redirection performed.';
+			return;
 		}
 
-		header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
-		print "Article not found or has an empty URL.";
+		header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+		print 'Article not found.';
 	}
 
 	static function _create_published_article(string $title, string $url, string $content, string $labels_str, int $owner_uid): bool {
@@ -49,11 +53,7 @@ class Article extends Handler_Protected {
 
 		$content_hash = sha1($content);
 
-		if ($labels_str != "") {
-			$labels = explode(",", $labels_str);
-		} else {
-			$labels = array();
-		}
+		$labels = $labels_str == '' ? [] : explode(',', $labels_str);
 
 		$rc = false;
 
@@ -170,8 +170,12 @@ class Article extends Handler_Protected {
 	}
 
 	function setScore(): void {
-		$ids = array_map("intval", clean($_REQUEST['ids'] ?? []));
-		$score = (int)clean($_REQUEST['score']);
+		$ids = self::_param_to_int_array($_REQUEST['ids'] ?? '');
+
+		if (!$ids)
+			return;
+
+		$score = (int) clean($_REQUEST['score']);
 
 		$ids_qmarks = arr_qmarks($ids);
 
@@ -187,10 +191,8 @@ class Article extends Handler_Protected {
 
 		$id = clean($_REQUEST["id"]);
 
-		//$tags_str = clean($_REQUEST["tags_str"]);
-		//$tags = array_unique(array_map('trim', explode(",", $tags_str)));
-
-		$tags = FeedItem_Common::normalize_categories(explode(",", clean($_REQUEST["tags_str"] ?? "")));
+		// When user enters linefeeds, also process them as a separator.
+		$tags = FeedItem_Common::normalize_categories(preg_split('/[,\r\n]+/', clean($_REQUEST['tags_str'] ?? ''), -1, PREG_SPLIT_NO_EMPTY));
 
 		$this->pdo->beginTransaction();
 
@@ -200,7 +202,7 @@ class Article extends Handler_Protected {
 
 		if ($row = $sth->fetch()) {
 
-			$tags_to_cache = array();
+			$tags_to_cache = [];
 
 			$int_id = $row['int_id'];
 
@@ -222,7 +224,7 @@ class Article extends Handler_Protected {
 					$usth->execute([$int_id, $_SESSION['uid'], $tag]);
 				}
 
-				array_push($tags_to_cache, $tag);
+				$tags_to_cache[] = $tag;
 			}
 
 			/* update tag cache */
@@ -237,7 +239,7 @@ class Article extends Handler_Protected {
 		$this->pdo->commit();
 
 		// get latest tags from the database, original $tags is sometimes JSON-encoded as a hash ({}) - ???
-		print json_encode(["id" => (int)$id, "tags" => $this->_get_tags($id)]);
+		print json_encode(["id" => (int)$id, "tags" => static::_get_tags($id)]);
 	}
 
 	function completeTags(): void {
@@ -252,9 +254,8 @@ class Article extends Handler_Protected {
 
 		$results = [];
 
-		while ($line = $sth->fetch()) {
-			array_push($results, $line["tag_name"]);
-		}
+		while ($line = $sth->fetch())
+			$results[] = $line['tag_name'];
 
 		print json_encode($results);
 	}
@@ -268,12 +269,12 @@ class Article extends Handler_Protected {
 	}
 
 	private function _label_ops(bool $assign): void {
-		$reply = array();
+		$reply = [];
 
-		$ids = array_map("intval", array_filter(explode(",", clean($_REQUEST["ids"] ?? "")), "strlen"));
-		$label_id = clean($_REQUEST["lid"]);
+		$ids = self::_param_to_int_array($_REQUEST['ids'] ?? '');
 
-		$label = Labels::find_caption($label_id, $_SESSION["uid"]);
+		$label_id = clean($_REQUEST['lid']);
+		$label = Labels::find_caption($label_id, $_SESSION['uid']);
 
 		$reply["labels-for"] = [];
 
@@ -284,8 +285,10 @@ class Article extends Handler_Protected {
 				else
 					Labels::remove_article($id, $label, $_SESSION["uid"]);
 
-				array_push($reply["labels-for"],
-					["id" => (int)$id, "labels" => $this->_get_labels($id)]);
+				$reply['labels-for'][] = [
+					'id' => (int) $id,
+					'labels' => static::_get_labels($id),
+				];
 			}
 		}
 
@@ -364,7 +367,7 @@ class Article extends Handler_Protected {
 					},
 					$enc, $id, $rv);
 
-				array_push($rv['entries'], $enc);
+				$rv['entries'][] = $enc;
 			}
 		}
 
@@ -386,7 +389,7 @@ class Article extends Handler_Protected {
 			WHERE post_int_id = (SELECT int_id FROM ttrss_user_entries WHERE
 			ref_id = ? AND owner_uid = ? LIMIT 1) ORDER BY tag_name");
 
-		$tags = array();
+		$tags = [];
 
 		/* check cache first */
 
@@ -408,9 +411,8 @@ class Article extends Handler_Protected {
 
 			$sth->execute([$a_id, $owner_uid]);
 
-			while ($tmp_line = $sth->fetch()) {
-				array_push($tags, $tmp_line["tag_name"]);
-			}
+			while ($tmp_line = $sth->fetch())
+				$tags[] = $tmp_line['tag_name'];
 
 			/* update the cache */
 
@@ -457,7 +459,7 @@ class Article extends Handler_Protected {
 				$enc->content_url = $cache->get_url($cache_key);
 			}
 
-			array_push($rv, $enc->as_array());
+			$rv[] = $enc->as_array();
 		}
 
 		return $rv;
@@ -506,10 +508,11 @@ class Article extends Handler_Protected {
 	}
 
 	/**
-	 * @return array<int, array<int, int|string>>
+	 * @return array{'no-labels': 1}|array<int, array{int, string, string, string}>
 	 */
 	static function _get_labels(int $id, ?int $owner_uid = null): array {
-		$rv = array();
+		/** @var array{'no-labels': 1}|array<int, array{int, string, string, string}> */
+		$rv = [];
 
 		if (!$owner_uid) $owner_uid = $_SESSION["uid"];
 
@@ -524,11 +527,7 @@ class Article extends Handler_Protected {
 
 			if ($label_cache) {
 				$tmp = json_decode($label_cache, true);
-
-				if (empty($tmp) || ($tmp["no-labels"] ?? 0) == 1)
-					return $rv;
-				else
-					return $tmp;
+				return (empty($tmp) || ($tmp['no-labels'] ?? 0) == 1) ? $rv : $tmp;
 			}
 		}
 
@@ -541,18 +540,15 @@ class Article extends Handler_Protected {
 		$sth->execute([$id, $owner_uid]);
 
 		while ($line = $sth->fetch()) {
-			$rk = array(Labels::label_to_feed_id($line["label_id"]),
-				$line["caption"], $line["fg_color"],
-				$line["bg_color"]);
-			array_push($rv, $rk);
+			$rv[] = [
+				Labels::label_to_feed_id($line['label_id']),
+				$line['caption'],
+				$line['fg_color'],
+				$line['bg_color'],
+			];
 		}
 
-		if (count($rv) > 0)
-			// PHPStan has issues with the shape of $rv for some reason (array vs non-empty-array).
-			// @phpstan-ignore-next-line
-			Labels::update_cache($owner_uid, $id, $rv);
-		else
-			Labels::update_cache($owner_uid, $id, array("no-labels" => 1));
+		Labels::update_cache($owner_uid, $id, count($rv) > 0 ? $rv : ['no-labels' => 1]);
 
 		return $rv;
 	}
@@ -570,7 +566,7 @@ class Article extends Handler_Protected {
 
 		PluginHost::getInstance()->chain_hooks_callback(PluginHost::HOOK_ARTICLE_IMAGE,
 			function ($result, $plugin) use (&$article_image, &$article_stream, &$content) {
-				list ($article_image, $article_stream, $content) = $result;
+				[$article_image, $article_stream, $content] = $result;
 
 				// run until first hard match
 				return !empty($article_image);
@@ -670,8 +666,8 @@ class Article extends Handler_Protected {
 
 			if (isset($labels) && is_array($labels)) {
 				foreach ($labels as $label) {
-					if (empty($label["no-labels"]))
-						array_push($rv, Labels::feed_to_label_id($label[0]));
+					if (empty($label['no-labels']))
+						$rv[] = Labels::feed_to_label_id($label[0]);
 				}
 			}
 		}
@@ -697,9 +693,8 @@ class Article extends Handler_Protected {
 
 		$rv = [];
 
-		foreach ($entries as $entry) {
-			array_push($rv, $entry->feed_id);
-		}
+		foreach ($entries as $entry)
+			$rv[] = $entry->feed_id;
 
 		return array_unique($rv);
 	}

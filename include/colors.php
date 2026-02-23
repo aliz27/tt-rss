@@ -1,12 +1,10 @@
 <?php
 namespace Colors;
 
-if (file_exists("lib/floIcon.php")) {
-	require_once "lib/floIcon.php";
-}
+require_once __DIR__ . '/../lib/floIcon.php';
 
 function _resolve_htmlcolor(string $color): string {
-	$htmlcolors = array ("aliceblue" => "#f0f8ff",
+	$htmlcolors =  ["aliceblue" => "#f0f8ff",
 		"antiquewhite" => "#faebd7",
 		"aqua" => "#00ffff",
 		"aquamarine" => "#7fffd4",
@@ -152,7 +150,7 @@ function _resolve_htmlcolor(string $color): string {
 		"white" => "#ffffff",
 		"whitesmoke" => "#f5f5f5",
 		"yellow" => "#ffff00",
-		"yellowgreen" => "#9acd32");
+		"yellowgreen" => "#9acd32"];
 
 	$color = strtolower($color);
 
@@ -179,7 +177,7 @@ function _color_rgb2hsl(array $rgb): array {
     if ($max == $g && $max != $b) $h += (2 + ($b - $r) / $delta);
     if ($max == $b && $max != $r) $h += (4 + ($r - $g) / $delta);
     $h /= 6;
-  } return array($h, $s, $l);
+  } return [$h, $s, $l];
 }
 
 /**
@@ -193,9 +191,9 @@ function _color_hsl2rgb($hsl): array {
   $h = $hsl[0]; $s = $hsl[1]; $l = $hsl[2];
   $m2 = ($l <= 0.5) ? $l * ($s + 1) : $l + $s - $l*$s;
   $m1 = $l * 2 - $m2;
-  return array(_color_hue2rgb($m1, $m2, $h + 0.33333),
+  return [_color_hue2rgb($m1, $m2, $h + 0.33333),
                _color_hue2rgb($m1, $m2, $h),
-               _color_hue2rgb($m1, $m2, $h - 0.33333));
+               _color_hue2rgb($m1, $m2, $h - 0.33333)];
 }
 
 ### Helper function for _color_hsl2rgb().
@@ -295,7 +293,7 @@ function rgb2hsl(array $arr): array {
       if ($h > 1) $h--;
    }
 
-   return array($h, $s, $v);
+   return [$h, $s, $v];
 }
 
 /**
@@ -328,7 +326,7 @@ function hsl2rgb(array $arr): array {
         $g = (int) round($var_G * 255);
         $B = (int) round($var_B * 255);
     }
-    return array($r, $g, $B);
+    return [$r, $g, $B];
 }
 
 /**

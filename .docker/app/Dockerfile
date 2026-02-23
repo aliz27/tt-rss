@@ -1,6 +1,5 @@
-ARG PROXY_REGISTRY
+FROM alpine:3.23.3
 
-FROM ${PROXY_REGISTRY}alpine:3.22
 EXPOSE 9000/tcp
 
 ARG ALPINE_MIRROR
@@ -12,13 +11,13 @@ ENV SRC_DIR=/src/tt-rss/
 ENV APP_INSTALL_BASE_DIR=/var/www/html
 
 # Used to centralize the PHP version suffix for packages and paths
-ENV PHP_SUFFIX=84
+ENV PHP_SUFFIX=85
 
 RUN [ ! -z ${ALPINE_MIRROR} ] && \
 	sed -i.bak "s#dl-cdn.alpinelinux.org#${ALPINE_MIRROR}#" /etc/apk/repositories ; \
 	apk add --no-cache ca-certificates dcron git postgresql-client rsync sudo tzdata \
 		php${PHP_SUFFIX} \
-		$(for p in ctype curl dom exif fileinfo fpm gd iconv intl json mbstring opcache \
+		$(for p in ctype curl dom exif fileinfo fpm gd iconv intl json mbstring \
 			openssl pcntl pdo pdo_pgsql pecl-apcu pecl-xdebug phar posix session simplexml sockets sodium tokenizer xml xmlwriter zip; do \
 			php_pkgs="$php_pkgs php${PHP_SUFFIX}-$p"; \
 		done; \
@@ -59,7 +58,7 @@ ADD .docker/app/config.docker.php ${SCRIPT_ROOT}
 
 COPY . ${SRC_DIR}
 
-ARG ORIGIN_REPO_XACCEL=https://git.tt-rss.org/fox/ttrss-nginx-xaccel.git
+ARG ORIGIN_REPO_XACCEL=https://github.com/tt-rss/tt-rss-plugin-nginx-xaccel.git
 
 RUN git clone --depth=1 ${ORIGIN_REPO_XACCEL} ${SRC_DIR}/plugins.local/nginx_xaccel
 
@@ -101,4 +100,4 @@ ENV TTRSS_DB_PORT="5432"
 ENV TTRSS_PHP_EXECUTABLE="/usr/bin/php${PHP_SUFFIX}"
 ENV TTRSS_PLUGINS="auth_internal, note, nginx_xaccel"
 
-CMD ${SCRIPT_ROOT}/startup.sh
+CMD ["/bin/sh", "-c", "${SCRIPT_ROOT}/startup.sh"]

@@ -1,11 +1,11 @@
 'use strict'
 
-/* global __, xhr, dijit, Notify, Tables, App, fox */
+/* global __, xhr, Notify, Tables, App, fox */
 
 const	Users = {
 	reload: function(sort) {
 		return new Promise((resolve, reject) => {
-			const user_search = App.byId("user_search");
+			const user_search = document.getElementById("user_search");
 			const search = user_search ? user_search.value : "";
 
 			xhr.post("backend.php", { op: "Pref_Users", sort: sort, search: search }, (reply) => {
@@ -32,7 +32,7 @@ const	Users = {
 	edit: function(id) {
 		xhr.json('backend.php', {op: 'Pref_Users', method: 'edit', id: id}, (reply) => {
 			const user = reply.user;
-			const admin_disabled = (user.id == 1);
+			const admin_disabled = (user.id === 1);
 
 			const dialog = new fox.SingleUseDialog({
 				id: "userEditDlg",
@@ -95,7 +95,7 @@ const	Users = {
 									<hr/>
 
 									<fieldset>
-										<label>${__("E-mail:")}</label>
+										<label>${__("Email:")}</label>
 										<input dojoType='dijit.form.TextBox' size='30' name='email'
 											value="${App.escapeHtml(user.email)}">
 									</fieldset>
@@ -132,7 +132,7 @@ const	Users = {
 	resetSelected: function() {
 		const rows = this.getSelection();
 
-		if (rows.length == 0) {
+		if (rows.length === 0) {
 			alert(__("No users selected."));
 			return;
 		}
@@ -180,3 +180,5 @@ const	Users = {
 	}
 }
 
+// Expose to global scope for Dojo widget onclick handlers (needed since Dojo 1.17.3)
+window.Users = Users;

@@ -5,9 +5,7 @@ class Pref_System extends Handler_Administrative {
 	private const LOG_PAGE_LIMIT = 15;
 
 	function csrf_ignore(string $method): bool {
-		$csrf_ignored = array("index");
-
-		return array_search($method, $csrf_ignored) !== false;
+		return $method === 'index';
 	}
 
 	function clearLog(): void {
@@ -19,11 +17,12 @@ class Pref_System extends Handler_Administrative {
 
 		$mailer = new Mailer();
 
-		$rc = $mailer->mail(["to_name" => "",
-			"to_address" => $mail_address,
-			"subject" => __("Test message from tt-rss"),
-			"message" => ("This message confirms that tt-rss can send outgoing mail.")
-			]);
+		$rc = $mailer->mail([
+			'to_name' => '',
+			'to_address' => $mail_address,
+			'subject' => __('Test message from tt-rss'),
+			'message' => __('This message confirms that tt-rss can send outgoing email.'),
+		]);
 
 		print json_encode(['rc' => $rc, 'error' => $mailer->error()]);
 	}
@@ -201,7 +200,7 @@ class Pref_System extends Handler_Administrative {
 					?>
 				</div>
 			<?php } ?>
-			<div dojoType='dijit.layout.AccordionPane' style='padding : 0' title='<i class="material-icons">mail</i> <?= __('Mail configuration') ?>'>
+			<div dojoType='dijit.layout.AccordionPane' style='padding : 0' title='<i class="material-icons">mail</i> <?= __('Email configuration') ?>'>
 				<div dojoType="dijit.layout.ContentPane">
 
 					<form dojoType="dijit.form.Form">
@@ -209,10 +208,10 @@ class Pref_System extends Handler_Administrative {
 							evt.preventDefault();
 							if (this.validate()) {
 								xhr.json("backend.php", this.getValues(), (reply) => {
-									const msg = App.byId("mail-test-result");
+									const msg = document.getElementById("mail-test-result");
 
 									if (reply.rc) {
-										msg.innerHTML = __("Mail sent.");
+										msg.innerHTML = <?= json_encode(__('Email sent.')) ?>;
 										msg.className = 'alert alert-success';
 									} else {
 										msg.innerHTML = reply.error;

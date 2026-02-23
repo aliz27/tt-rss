@@ -46,7 +46,7 @@ class RPC extends Handler_Protected {
 		Prefs::set($key, !Prefs::get($key, $_SESSION['uid'], $profile), $_SESSION['uid'], $profile);
 		$value = Prefs::get($key, $_SESSION['uid'], $profile);
 
-		print json_encode(array("param" =>$key, "value" => $value));
+		print json_encode(["param" =>$key, "value" => $value]);
 	}
 
 	function setpref(): void {
@@ -56,7 +56,7 @@ class RPC extends Handler_Protected {
 
 		Prefs::set($key, $value, $_SESSION['uid'], $_SESSION['profile'] ?? null, $key != 'USER_STYLESHEET');
 
-		print json_encode(array("param" =>$key, "value" => $value));
+		print json_encode(["param" =>$key, "value" => $value]);
 	}
 
 	function mark(): void {
@@ -71,18 +71,21 @@ class RPC extends Handler_Protected {
 
 		PluginHost::getInstance()->run_hooks(PluginHost::HOOK_ARTICLES_MARK_TOGGLED, [$id]);
 
-		print json_encode(array("message" => "UPDATE_COUNTERS"));
+		print json_encode(["message" => "UPDATE_COUNTERS"]);
 	}
 
 	function delete(): void {
-		$ids = explode(",", clean($_REQUEST["ids"]));
-		$ids_qmarks = arr_qmarks($ids);
+		$ids = self::_param_to_int_array($_REQUEST['ids'] ?? '');
 
-		$sth = $this->pdo->prepare("DELETE FROM ttrss_user_entries
-			WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
-		$sth->execute([...$ids, $_SESSION['uid']]);
+		if (!$ids)
+			return;
 
-		print json_encode(array("message" => "UPDATE_COUNTERS"));
+		ORM::for_table('ttrss_user_entries')
+			->where_in('ref_id', $ids)
+			->where('owner_uid', $_SESSION['uid'])
+			->delete_many();
+
+		print json_encode(["message" => "UPDATE_COUNTERS"]);
 	}
 
 	function publ(): void {
@@ -97,12 +100,12 @@ class RPC extends Handler_Protected {
 
 		PluginHost::getInstance()->run_hooks(PluginHost::HOOK_ARTICLES_PUBLISH_TOGGLED, [$id]);
 
-		print json_encode(array("message" => "UPDATE_COUNTERS"));
+		print json_encode(["message" => "UPDATE_COUNTERS"]);
 	}
 
 	function getRuntimeInfo(): void {
 		$reply = [
-			'runtime-info' => $this->_make_runtime_info()
+			'runtime-info' => static::_make_runtime_info()
 		];
 
 		print json_encode($reply);
@@ -117,31 +120,22 @@ class RPC extends Handler_Protected {
 		// it seems impossible to distinguish empty array [] from a null - both become unset in $_REQUEST
 		// so, count is >= 0 means we had an array, -1 means null
 		// we need null because it means "return all counters"; [] would return nothing
-		if ($feed_id_count == -1)
-			$feed_ids = null;
-		else
-			$feed_ids = array_map("intval", clean($_REQUEST["feed_ids"] ?? []));
-
-		if ($label_id_count == -1)
-			$label_ids = null;
-		else
-			$label_ids = array_map("intval", clean($_REQUEST["label_ids"] ?? []));
+		$feed_ids = $feed_id_count == -1 ? null : (self::_param_to_int_array($_REQUEST['feed_ids'] ?? '') ?? []);
+		$label_ids = $label_id_count == -1 ? null : (self::_param_to_int_array($_REQUEST['label_ids'] ?? '') ?? []);
 
 		$counters = is_array($feed_ids)
 			&& !Prefs::get(Prefs::DISABLE_CONDITIONAL_COUNTERS, $_SESSION['uid'], $_SESSION['profile'] ?? null) ?
 			Counters::get_conditional($feed_ids, $label_ids) : Counters::get_all();
 
-		$reply = [
+		print json_encode([
 			'counters' => $counters,
-			'seq' => $seq
-		];
-
-		print json_encode($reply);
+			'seq' => $seq,
+		]);
 	}
 
 	/* GET["cmode"] = 0 - mark as read, 1 - as unread, 2 - toggle */
 	function catchupSelected(): void {
-		$ids = array_map("intval", clean($_REQUEST["ids"] ?? []));
+		$ids = self::_param_to_int_array($_REQUEST['ids'] ?? '') ?? [];
 		$cmode = (int)clean($_REQUEST["cmode"]);
 
 		if (count($ids) > 0)
@@ -153,7 +147,7 @@ class RPC extends Handler_Protected {
 	}
 
 	function markSelected(): void {
-		$ids = array_map("intval", clean($_REQUEST["ids"] ?? []));
+		$ids = self::_param_to_int_array($_REQUEST['ids'] ?? '') ?? [];
 		$cmode = (int)clean($_REQUEST["cmode"]);
 
 		if (count($ids) > 0)
@@ -165,7 +159,7 @@ class RPC extends Handler_Protected {
 	}
 
 	function publishSelected(): void {
-		$ids = array_map("intval", clean($_REQUEST["ids"] ?? []));
+		$ids = self::_param_to_int_array($_REQUEST['ids'] ?? '') ?? [];
 		$cmode = (int)clean($_REQUEST["cmode"]);
 
 		if (count($ids) > 0)
@@ -198,13 +192,11 @@ class RPC extends Handler_Protected {
 		}
 
 		if ($error == Errors::E_SUCCESS) {
-			$reply = [];
-
-			$reply['init-params'] = $this->_make_init_params();
-			$reply['runtime-info'] = $this->_make_runtime_info();
-			$reply['translations'] = $this->_translations_as_array();
-
-			print json_encode($reply);
+			print json_encode([
+				'init-params' => $this->_make_init_params(),
+				'runtime-info' => static::_make_runtime_info(),
+				'translations' => $this->_translations_as_array(),
+			]);
 		} else {
 			print Errors::to_json($error, $error_params);
 		}
@@ -283,19 +275,15 @@ class RPC extends Handler_Protected {
 
 		$ids_qmarks = arr_qmarks($ids);
 
-		if ($cmode == Article::CATCHUP_MODE_MARK_AS_READ) {
-			$sth = $this->pdo->prepare("UPDATE ttrss_user_entries SET
-				published = false, last_published = NOW()
-					WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
-		} else if ($cmode == Article::CATCHUP_MODE_MARK_AS_UNREAD) {
-			$sth = $this->pdo->prepare("UPDATE ttrss_user_entries SET
-				published = true, last_published = NOW()
-					WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
-		} else {
-			$sth = $this->pdo->prepare("UPDATE ttrss_user_entries SET
-				published = NOT published,last_published = NOW()
-					WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
-		}
+		$published_val = match($cmode) {
+			Article::CATCHUP_MODE_MARK_AS_READ => 'false',
+			Article::CATCHUP_MODE_MARK_AS_UNREAD => 'true',
+			default => 'NOT published',
+		};
+
+		$sth = $this->pdo->prepare("UPDATE ttrss_user_entries
+			SET published = {$published_val}, last_published = NOW()
+			WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
 
 		$sth->execute([...$ids, $_SESSION['uid']]);
 
@@ -312,7 +300,7 @@ class RPC extends Handler_Protected {
 			Logger::log_error(E_USER_WARNING,
 				$msg, 'client-js:' . $file, $line, $context);
 
-			echo json_encode(array("message" => "HOST_ERROR_LOGGED"));
+			echo json_encode(["message" => "HOST_ERROR_LOGGED"]);
 		}
 	}
 
@@ -325,16 +313,17 @@ class RPC extends Handler_Protected {
 		$git_commit = $version["commit"] ?? false;
 
 		if (Config::get(Config::CHECK_FOR_UPDATES) && $_SESSION["access_level"] >= UserHelper::ACCESS_LEVEL_ADMIN && $git_timestamp) {
-			$content = @UrlHelper::fetch(["url" => "https://tt-rss.org/version.json"]);
+			$content = @UrlHelper::fetch(['url' => 'https://tt-rss.org/tt-rss/version.json']);
 
 			if ($content) {
 				$content = json_decode($content, true);
 
 				if ($content && isset($content["changeset"])) {
-					if ($git_timestamp < (int)$content["changeset"]["timestamp"] &&
-						$git_commit != $content["changeset"]["id"]) {
-
-						$rv["changeset"] = $content["changeset"];
+					if ($git_timestamp < (int)$content['changeset']['timestamp'] && $git_commit != $content['changeset']['id']) {
+						$rv['changeset'] = [
+							...$content['changeset'],
+							'compare_url' => "https://github.com/tt-rss/tt-rss/compare/{$git_commit}...{$content['changeset']['id']}",
+						];
 					}
 				}
 			}
@@ -350,12 +339,12 @@ class RPC extends Handler_Protected {
 	 */
 	private function _make_init_params(): array {
 		$profile = $_SESSION['profile'] ?? null;
-		$params = array();
+		$params = [];
 
 		foreach ([Prefs::ON_CATCHUP_SHOW_NEXT_FEED, Prefs::HIDE_READ_FEEDS,
 			Prefs::ENABLE_FEED_CATS, Prefs::FEEDS_SORT_BY_UNREAD,
 			Prefs::CONFIRM_FEED_CATCHUP,  Prefs::CDM_AUTO_CATCHUP,
-			Prefs::FRESH_ARTICLE_MAX_AGE, Prefs::HIDE_READ_SHOWS_SPECIAL,
+			Prefs::FRESH_ARTICLE_MAX_AGE, Prefs::RECENTLY_READ_MAX_AGE, Prefs::HIDE_READ_SHOWS_SPECIAL,
 			Prefs::COMBINED_DISPLAY_MODE, Prefs::DEBUG_HEADLINE_IDS, Prefs::CDM_ENABLE_GRID] as $param) {
 
 			$params[strtolower($param)] = (int) Prefs::get($param, $_SESSION['uid'], $profile);
@@ -393,7 +382,7 @@ class RPC extends Handler_Protected {
 		$params["self_url_prefix"] = Config::get_self_url();
 		$params["max_feed_id"] = (int) $max_feed_id;
 		$params["num_feeds"] = (int) $num_feeds;
-		$params["hotkeys"] = $this->get_hotkeys_map();
+		$params["hotkeys"] = static::get_hotkeys_map();
 		$params["widescreen"] = (int) Prefs::get(Prefs::WIDESCREEN_MODE, $_SESSION['uid'], $profile);
 		$params["icon_indicator_white"] = $this->image_to_base64("images/indicator_white.gif");
 		$params["icon_oval"] = $this->image_to_base64("images/oval.svg");
@@ -420,8 +409,6 @@ class RPC extends Handler_Protected {
 	 * @return array<string, mixed>
 	 */
 	static function _make_runtime_info(): array {
-		$data = array();
-
 		$pdo = Db::pdo();
 
 		$sth = $pdo->prepare("SELECT MAX(id) AS mid, COUNT(*) AS nf FROM
@@ -432,10 +419,12 @@ class RPC extends Handler_Protected {
 		$max_feed_id = $row['mid'];
 		$num_feeds = $row['nf'];
 
-		$data["max_feed_id"] = (int) $max_feed_id;
-		$data["num_feeds"] = (int) $num_feeds;
-		$data['cdm_expanded'] = Prefs::get(Prefs::CDM_EXPANDED, $_SESSION['uid'], $_SESSION['profile'] ?? null);
-		$data["labels"] = Labels::get_all($_SESSION["uid"]);
+		$data = [
+			'max_feed_id' => (int) $max_feed_id,
+			'num_feeds' => (int) $num_feeds,
+			'cdm_expanded' => Prefs::get(Prefs::CDM_EXPANDED, $_SESSION['uid'], $_SESSION['profile'] ?? null),
+			'labels' => Labels::get_all($_SESSION["uid"]),
+		];
 
 		if (Config::get(Config::LOG_DESTINATION) == 'sql' && $_SESSION['access_level'] >= UserHelper::ACCESS_LEVEL_ADMIN) {
 
@@ -487,8 +476,8 @@ class RPC extends Handler_Protected {
 	 * @return array<string, array<string, string>>
 	 */
 	static function get_hotkeys_info(): array {
-		$hotkeys = array(
-			__("Navigation") => array(
+		$hotkeys = [
+			__("Navigation") => [
 				"next_feed" => __("Open next feed"),
 				"next_unread_feed" => __("Open next unread feed"),
 				"prev_feed" => __("Open previous feed"),
@@ -502,8 +491,8 @@ class RPC extends Handler_Protected {
 				"next_article_noexpand" => __("Move to next article (don't expand)"),
 				"prev_article_noexpand" => __("Move to previous article (don't expand)"),
 				"search_dialog" => __("Show search dialog"),
-				"cancel_search" => __("Cancel active search")),
-			__("Article") => array(
+				"cancel_search" => __("Cancel active search")],
+			__("Article") => [
 				"toggle_mark" => __("Toggle starred"),
 				"toggle_publ" => __("Toggle published"),
 				"toggle_unread" => __("Toggle unread"),
@@ -520,15 +509,15 @@ class RPC extends Handler_Protected {
 				"close_article" => __("Close/collapse article"),
 				"toggle_expand" => __("Toggle article expansion (combined mode)"),
 				"toggle_widescreen" => __("Toggle widescreen mode"),
-				"toggle_full_text" => __("Toggle full article text via Readability")),
-			__("Article selection") => array(
+				"toggle_full_text" => __("Toggle full article text via Readability")],
+			__("Article selection") => [
 				"select_all" => __("Select all articles"),
 				"select_unread" => __("Select unread"),
 				"select_marked" => __("Select starred"),
 				"select_published" => __("Select published"),
 				"select_invert" => __("Invert selection"),
-				"select_none" => __("Deselect everything")),
-			__("Feed") => array(
+				"select_none" => __("Deselect everything")],
+			__("Feed") => [
 				"feed_refresh" => __("Refresh current feed"),
 				"feed_unhide_read" => __("Un/hide read feeds"),
 				"feed_subscribe" => __("Subscribe to feed"),
@@ -542,20 +531,20 @@ class RPC extends Handler_Protected {
 				"catchup_all" => __("Mark all feeds as read"),
 				"cat_toggle_collapse" => __("Un/collapse current category"),
 				"toggle_cdm_expanded" => __("Toggle auto expand in combined mode"),
-				"toggle_combined_mode" => __("Toggle combined mode")),
-			__("Go to") => array(
+				"toggle_combined_mode" => __("Toggle combined mode")],
+			__("Go to") => [
 				"goto_all" => __("All articles"),
 				"goto_fresh" => __("Fresh"),
 				"goto_marked" => __("Starred"),
 				"goto_published" => __("Published"),
 				"goto_read" => __("Recently read"),
-				"goto_prefs" => __("Preferences")),
-			__("Other") => array(
+				"goto_prefs" => __("Preferences")],
+			__("Other") => [
 				"create_label" => __("Create label"),
 				"create_filter" => __("Create filter"),
 				"collapse_sidebar" => __("Un/collapse sidebar"),
-				"help_dialog" => __("Show help dialog"))
-		);
+				"help_dialog" => __("Keyboard shortcuts help")]
+		];
 
 		PluginHost::getInstance()->chain_hooks_callback(PluginHost::HOOK_HOTKEY_INFO,
 			function ($result) use (&$hotkeys) {
@@ -573,7 +562,7 @@ class RPC extends Handler_Protected {
 	 * @return array{0: array<int, string>, 1: array<string, string>} $prefixes, $hotkeys
 	 */
 	static function get_hotkeys_map() {
-		$hotkeys = array(
+		$hotkeys = [
 			"k" => "next_feed",
 			"K" => "next_unread_feed",
 			"j" => "prev_feed",
@@ -635,7 +624,7 @@ class RPC extends Handler_Protected {
 			"c f" => "create_filter",
 			"c s" => "collapse_sidebar",
 			"?" => "help_dialog",
-		);
+		];
 
 		PluginHost::getInstance()->chain_hooks_callback(PluginHost::HOOK_HOTKEY_MAP,
 			function ($result) use (&$hotkeys) {
@@ -643,17 +632,16 @@ class RPC extends Handler_Protected {
 			},
 			$hotkeys);
 
-		$prefixes = array();
+		$prefixes = [];
 
 		foreach (array_keys($hotkeys) as $hotkey) {
 			$pair = explode(" ", (string)$hotkey, 2);
 
-			if (count($pair) > 1 && !in_array($pair[0], $prefixes)) {
-				array_push($prefixes, $pair[0]);
-			}
+			if (count($pair) > 1 && !in_array($pair[0], $prefixes))
+				$prefixes[] = $pair[0];
 		}
 
-		return array($prefixes, $hotkeys);
+		return [$prefixes, $hotkeys];
 	}
 
 	function hotkeyHelp(): void {

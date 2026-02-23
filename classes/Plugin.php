@@ -25,7 +25,7 @@ abstract class Plugin {
 		/* associative array, possible keys:
 			needs_curl = boolean
 		*/
-		return array();
+		return [];
 	}
 
 	/**
@@ -61,6 +61,11 @@ abstract class Plugin {
 
 	/** @return string */
 	function get_prefs_js() {
+		return "";
+	}
+
+	/** @return string */
+	function get_prefs_css() {
 		return "";
 	}
 
@@ -523,7 +528,7 @@ abstract class Plugin {
 
 	/** Invoked when file (e.g. cache entry, static data) is being sent to client, may override default mechanism
 	 * using faster httpd-specific implementation (see nginx_xaccel)
-	 * @param string $filename
+	 * @param string $filename The full path of the file to send.
 	 * @return bool
 	 * @see PluginHost::HOOK_SEND_LOCAL_FILE
 	 */

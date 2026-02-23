@@ -43,7 +43,7 @@ class Counters {
 					->find_many();
 
 		foreach ($cats as $cat) {
-			list ($tmp_unread, $tmp_marked, $tmp_published) = self::get_cat_children($cat->id, $owner_uid);
+			[$tmp_unread, $tmp_marked, $tmp_published] = self::get_cat_children($cat->id, $owner_uid);
 
 			$unread += $tmp_unread + Feeds::_get_cat_unread($cat->id, $owner_uid);
 			$marked += $tmp_marked + Feeds::_get_cat_marked($cat->id, $owner_uid);
@@ -55,19 +55,20 @@ class Counters {
 
 	/**
 	 * @param array<int>|null $cat_ids
-	 * @return array<int, array<string, int|string>>
+	 * @return array<int, array{id: int, kind: 'cat', counter: int, markedcounter?: int, publishedcounter?: int}>
 	 */
 	private static function get_cats(?array $cat_ids = null): array {
-		$ret = [];
+		$pdo = Db::pdo();
 
 		/* Labels category */
 
-		$cv = array("id" => Feeds::CATEGORY_LABELS, "kind" => "cat",
-			"counter" => Feeds::_get_cat_unread(Feeds::CATEGORY_LABELS));
-
-		array_push($ret, $cv);
-
-		$pdo = Db::pdo();
+		$ret = [
+			[
+				'id' => Feeds::CATEGORY_LABELS,
+				'kind' => 'cat',
+				'counter' => Feeds::_get_cat_unread(Feeds::CATEGORY_LABELS),
+			],
+		];
 
 		if (is_array($cat_ids)) {
 			if (count($cat_ids) == 0)
@@ -127,22 +128,20 @@ class Counters {
 
 		while ($line = $sth->fetch()) {
 			if ($line["num_children"] > 0) {
-				list ($child_counter, $child_marked_counter, $child_published_counter) = self::get_cat_children($line["id"], $_SESSION["uid"]);
+				[$child_counter, $child_marked_counter, $child_published_counter] = self::get_cat_children($line["id"], $_SESSION["uid"]);
 			} else {
 				$child_counter = 0;
 				$child_marked_counter = 0;
 				$child_published_counter = 0;
 			}
 
-			$cv = [
-				"id" => (int)$line["id"],
-				"kind" => "cat",
-				"markedcounter" => (int) $line["count_marked"] + $child_marked_counter,
-				"publishedcounter" => (int) $line["count_published"] + $child_published_counter,
-				"counter" => (int) $line["count"] + $child_counter
+			$ret[] = [
+				'id' => (int) $line['id'],
+				'kind' => 'cat',
+				'markedcounter' => (int) $line['count_marked'] + $child_marked_counter,
+				'publishedcounter' => (int) $line['count_published'] + $child_published_counter,
+				'counter' => (int) $line['count'] + $child_counter,
 			];
-
-			array_push($ret, $cv);
 		}
 
 		return $ret;
@@ -150,7 +149,7 @@ class Counters {
 
 	/**
 	 * @param array<int>|null $feed_ids
-	 * @return array<int, array<string, int|string>>
+	 * @return array<int, array{id: int, title: string, error: string, updated: string, counter: int, markedcounter: int, publishedcounter: int, ts: int}>
 	 */
 	private static function get_feeds(?array $feed_ids = null): array {
 		$ret = [];
@@ -191,30 +190,17 @@ class Counters {
 	}
 
 	/**
-	 * @return array<int, array<string, int|string>>
+	 * @return array<int, array{id: string, counter: int}>
 	 */
 	private static function get_global(): array {
-		$ret = [
-			[
-				"id" => "global-unread",
-				"counter" => (int) Feeds::_get_global_unread()
-			]
+		return [
+			['id' => 'global-unread', 'counter' => (int) Feeds::_get_global_unread()],
+			['id' => 'subscribed-feeds', 'counter' => ORM::for_table('ttrss_feeds')->where('owner_uid', $_SESSION['uid'])->count()],
 		];
-
-		$subcribed_feeds = ORM::for_table('ttrss_feeds')
-			->where('owner_uid', $_SESSION['uid'])
-			->count();
-
-		array_push($ret, [
-			"id" => "subscribed-feeds",
-			"counter" => $subcribed_feeds
-		]);
-
-		return $ret;
 	}
 
 	/**
-	 * @return array<int, array<string, int|string>>
+	 * @return array<int, array{id: int, counter: int, auxcounter: int, markedcounter?: int, publishedcounter?: int}>
 	 */
 	private static function get_virt(): array {
 		$ret = [];
@@ -236,12 +222,11 @@ class Counters {
 			];
 
 			if ($feed_id == Feeds::FEED_STARRED)
-				$cv["markedcounter"] = $auxctr;
+				$cv['markedcounter'] = $auxctr;
+			elseif ($feed_id == Feeds::FEED_PUBLISHED)
+				$cv['publishedcounter'] = $auxctr;
 
-			if ($feed_id == Feeds::FEED_PUBLISHED)
-				$cv["publishedcounter"] = $auxctr;
-
-			array_push($ret, $cv);
+			$ret[] = $cv;
 		}
 
 		foreach (PluginHost::getInstance()->get_feeds(Feeds::CATEGORY_SPECIAL) as $feed) {
@@ -258,7 +243,7 @@ class Counters {
 			if (method_exists($feed['sender'], 'get_total'))
 				$cv["auxcounter"] = $feed['sender']->get_total($feed['id']);
 
-			array_push($ret, $cv);
+			$ret[] = $cv;
 		}
 
 		return $ret;
@@ -266,7 +251,7 @@ class Counters {
 
 	/**
 	 * @param array<int>|null $label_ids
-	 * @return array<int, array<string, int|string>>
+	 * @return array<int, array{id: int, counter: int, auxcounter: int, markedcounter: int, publishedcounter: int, description: string}>
 	 */
 	static function get_labels(?array $label_ids = null): array {
 		$ret = [];
@@ -319,7 +304,7 @@ class Counters {
 				"description" => $line["caption"]
 			];
 
-			array_push($ret, $cv);
+			$ret[] = $cv;
 		}
 
 		return $ret;

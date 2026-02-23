@@ -10,6 +10,31 @@ unset HTTP_HOST
 unset ADMIN_USER_PASS
 unset AUTO_CREATE_USER_PASS
 
+# Allow setting environment variables with Docker secrets.
+# The format is '<variable-name>__FILE'.
+SUFFIX="__FILE"
+
+# loop through all environment variables
+for VAR in $(printenv | awk -F= '{print $1}'); do
+	# shellcheck disable=SC2330 # https://github.com/koalaman/shellcheck/issues/2998
+	if [[ $VAR == *"$SUFFIX" ]]; then
+		ENV_FILE_NAME="$(printenv "${VAR}")"
+		ENV_VAR="${VAR%$SUFFIX}"
+
+		if printenv "$ENV_VAR" &>/dev/null; then
+			echo "warning: Both $ENV_VAR and $VAR are set. $VAR will override $ENV_VAR."
+		fi
+
+		if [[ -r "$ENV_FILE_NAME" ]]; then
+			VALUE="$(cat "$ENV_FILE_NAME")"
+			export "$ENV_VAR"="$VALUE"
+			echo "$ENV_VAR environment variable was set by secret file $ENV_FILE_NAME"
+		else
+			echo "warning: Secret file $ENV_FILE_NAME for $VAR is not readable or does not exist."
+		fi
+	fi
+done
+
 # wait for the app container to delete .app_is_ready and perform rsync, etc.
 sleep 30
 
@@ -31,7 +56,7 @@ sed -i.bak "s/^\(memory_limit\) = \(.*\)/\1 = ${PHP_WORKER_MEMORY_LIMIT}/" \
 
 DST_DIR=$APP_INSTALL_BASE_DIR/tt-rss
 
-while [ ! -s $DST_DIR/config.php -a -e $DST_DIR/.app_is_ready ]; do
+while [ ! -s $DST_DIR/config.php ] && [ -e $DST_DIR/.app_is_ready ]; do
 	echo waiting for app container...
 	sleep 3
 done

@@ -1,5 +1,4 @@
-/* eslint-disable prefer-rest-params */
-/* global __, dojo, dijit, define, App, Feeds, CommonDialogs */
+/* global __, define, App, Feeds, CommonDialogs */
 
 define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/cookie", "dijit/Tree", "dijit/Menu"], function (declare, domConstruct, array, cookie) {
 
@@ -26,7 +25,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 				// var oreo = cookie(this.cookieName);
 				let oreo = localStorage.getItem(this.cookieName);
 				// migrate old data if nothing in localStorage
-				if (oreo == null || oreo === '') {
+				if (oreo === null || oreo === '') {
 					oreo = cookie(this.cookieName);
 					cookie(this.cookieName, null, { expires: -1 });
 				}
@@ -50,7 +49,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 			let iconNode;
 
 			if (iconName) {
-				if (iconName.indexOf("/") == -1) {
+				if (iconName.indexOf("/") === -1) {
 					iconNode = dojo.create("i", { className: "material-icons icon icon-" + iconName, innerHTML: iconName });
 				} else {
 					iconNode = dojo.create('img', { className: 'icon' });
@@ -59,6 +58,9 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 					} else {
 						iconNode.src = 'images/blank_icon.gif';
 					}
+					iconNode.onerror = () => {
+						Feeds._handleIconError(iconNode);
+					};
 				}
 			}
 
@@ -156,7 +158,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 				domConstruct.place(tnode.loadingNode, tnode.expandoNode, 'only');
 			}
 
-			if (id.match("CAT:") && bare_id == -1) {
+			if (id.match("CAT:") && bare_id === -1) {
 				const menu = new dijit.Menu();
 				menu.row_id = bare_id;
 
@@ -205,48 +207,42 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 			}
 		},
 		getTooltip: function (item) {
-			return [item.updated, item.error].filter((x) => x && x != "").join(" - ");
+			// TODO: item.error is `[""]` for feeds.  Need to look into what's happening on the frontend to cause that-- the backend sends a string.
+			// For now, just adding a check for `[""]`.
+			return [item.updated, item.error].filter((x) => x && x !== '' && !(Array.isArray(x) && x.length === 1 && x[0] === '')).join(' - ');
 		},
 		getIconClass: function (item, opened) {
-			// eslint-disable-next-line no-nested-ternary
 			return (!item || this.model.mayHaveChildren(item)) ? (opened ? "dijitFolderOpened" : "dijitFolderClosed") : "feed-icon";
 		},
-		getLabelClass: function (item/* , opened */) {
+		getLabelClass: function (item /*, opened */) {
 			return (item.unread <= 0) ? "dijitTreeLabel" : "dijitTreeLabel Unread";
 		},
-		getRowClass: function (item/*, opened */) {
+		getRowClass: function (item /*, opened */) {
 			let rc = "dijitTreeRow dijitTreeRowFlex";
 
-			const is_cat = String(item.id).indexOf('CAT:') != -1;
+			const is_cat = String(item.id).indexOf('CAT:') !== -1;
 
 			if (is_cat)
 				rc += " Is_Cat";
 			else
 				rc += " Is_Feed";
 
-			if (!is_cat && item.error != '') rc += " Error";
+			// TODO: item.error is `[""]` for feeds.  Need to look into what's happening on the frontend to cause that-- the backend sends a string.
+			// For now, just adding a check for `[""]`.
+			if (!is_cat && item.error !== '' && !(Array.isArray(item.error) && item.error.length === 1 && item.error[0] === '')) rc += ' Error';
 			if (item.unread > 0) rc += " Unread";
 			if (item.auxcounter > 0) rc += " Has_Aux";
 			if (item.markedcounter > 0) rc += " Has_Marked";
 			if (item.publishedcounter > 0) rc += " Has_Published";
 			if (item.updates_disabled > 0) rc += " UpdatesDisabled";
-			if (item.bare_id >= App.LABEL_BASE_INDEX && item.bare_id < 0 && !is_cat || item.bare_id == Feeds.FEED_ARCHIVED && !is_cat) rc += " Special";
-			if (item.bare_id == Feeds.CATEGORY_SPECIAL && is_cat) rc += " AlwaysVisible";
+			if (item.bare_id >= App.LABEL_BASE_INDEX && item.bare_id < 0 && !is_cat || item.bare_id === Feeds.FEED_ARCHIVED && !is_cat) rc += " Special";
+			if (item.bare_id === Feeds.CATEGORY_SPECIAL && is_cat) rc += " AlwaysVisible";
 			if (item.bare_id < App.LABEL_BASE_INDEX) rc += " Label";
 
 			return rc;
 		},
 		getLabel: function(item) {
-			let name = String(item.name);
-
-			/* Horrible */
-			name = name.replace(/&quot;/g, "\"");
-			name = name.replace(/&amp;/g, "&");
-			name = name.replace(/&mdash;/g, "-");
-			name = name.replace(/&lt;/g, "<");
-			name = name.replace(/&gt;/g, ">");
-
-			return name;
+			return App.unescapeHtml(item.name);
 		},
 		expandParentNodes: function(feed, is_cat, list) {
 			try {
@@ -275,7 +271,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 					const items = this.model.store._arrayOfTopLevelItems;
 
 					for (let i = 0; i < items.length; i++) {
-						if (String(items[i].id) == test_id) {
+						if (String(items[i].id) === test_id) {
 							this.expandParentNodes(feed, is_cat, parents);
 						} else {
 							this.findNodeParentsAndExpandThem(feed, is_cat, items[i], []);
@@ -285,13 +281,13 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 						parents.push(root);
 
 						for (let i = 0; i < root.items.length; i++) {
-							if (String(root.items[i].id) == test_id) {
+							if (String(root.items[i].id) === test_id) {
 								this.expandParentNodes(feed, is_cat, parents);
 							} else {
 								this.findNodeParentsAndExpandThem(feed, is_cat, root.items[i], parents.slice(0));
 							}
 						}
-					} else if (String(root.id) == test_id) {
+					} else if (String(root.id) === test_id) {
 							this.expandParentNodes(feed, is_cat, parents.slice(0));
 						}
 			} catch (e) {
@@ -316,7 +312,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 
 				// focus headlines to route key events there
 				setTimeout(() => {
-					App.byId("headlines-frame").focus();
+					document.getElementById("headlines-frame").focus();
 
 					if (treeNode) {
 						const node = treeNode.rowNode;
@@ -325,7 +321,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 						if (node && tree) {
 							// scroll tree to selection if needed
 							if (node.offsetTop < tree.scrollTop || node.offsetTop > tree.scrollTop + tree.clientHeight) {
-								App.byId("feedTree").scrollTop = node.offsetTop;
+								document.getElementById("feedTree").scrollTop = node.offsetTop;
 							}
 						}
 					}
@@ -349,6 +345,9 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 
 				if (icon) {
 					icon.src = src;
+					icon.onerror = () => {
+						Feeds._handleIconError(icon);
+					};
 
 					return true;
 				}
@@ -367,11 +366,11 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 				treeNode = treeNode[0];
 
 				if (show) {
-					treeNode.loadingNode.addClassName("visible");
+					treeNode.loadingNode.classList.add('visible');
 					treeNode.loadingNode.setAttribute("src",
 						is_cat ? App.getInitParam("icon_three_dots") : App.getInitParam("icon_oval"));
 				} else {
-					treeNode.loadingNode.removeClassName("visible");
+					treeNode.loadingNode.classList.remove('visible');
 					treeNode.loadingNode.setAttribute("src", App.getInitParam("icon_blank"))
 				}
 
@@ -432,7 +431,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 			const items = this.model.store._arrayOfAllItems;
 			const start = items.indexOf(treeItem);
 
-			if (start != -1) {
+			if (start !== -1) {
 				let item = this._nextTreeItemFromIndex(start, unread_only);
 
 				// let's try again from the top
@@ -478,7 +477,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 			const items = this.model.store._arrayOfAllItems;
 			const start = items.indexOf(treeItem);
 
-			if (start != -1) {
+			if (start !== -1) {
 				let item = this._prevTreeItemFromIndex(start, unread_only);
 
 				// wrap from the bottom
@@ -499,7 +498,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 					_itemsByIdentity["FEED:" + feed])[0].
 				getParent().item.bare_id[0];
 
-			} catch (e) {
+			} catch {
 				return false;
 			}
 		},

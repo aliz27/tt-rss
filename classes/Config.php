@@ -48,8 +48,22 @@ class Config {
 	/** PostgreSQL SSL mode (prefer, require, disabled) */
 	const DB_SSLMODE = "DB_SSLMODE";
 
-	/** this is a fallback falue for the CLI SAPI, it should be set to a fully-qualified tt-rss URL */
+	/**
+	 * The fully-qualified tt-rss URL accessed by users.
+	 * This value is only used when running via the CLI SAPI or when FORCE_SELF_URL_PATH_USAGE is enabled.
+	 * By default the 'Host' request header seen by tt-rss is used to construct the 'self URL'.
+	 */
 	const SELF_URL_PATH = "SELF_URL_PATH";
+
+	/**
+	 * By default the tt-rss self URL will be built using the 'Host' request header.
+	 * Enabling this option will force tt-rss to instead always use the SELF_URL_PATH value,
+	 * which may simplify things in certain scenarios (e.g. multiple proxies).
+	 *
+	 * NOTE: This was introduced instead of always using 'SELF_URL_PATH' since 'SELF_URL_PATH' may already exist
+	 * in configs but be invalid (which was a common setup issue prior to auto-detection).
+	 */
+	const FORCE_SELF_URL_PATH_USAGE = 'FORCE_SELF_URL_PATH_USAGE';
 
 	/** operate in single user mode, disables all functionality related to
 	 * multiple users and authentication. enabling this assumes you have
@@ -230,6 +244,7 @@ class Config {
 		Config::DB_PORT => [ "5432",										Config::T_STRING ],
 		Config::DB_SSLMODE => [ "prefer",                        Config::T_STRING ],
 		Config::SELF_URL_PATH => [ "https://example.com/tt-rss", Config::T_STRING ],
+		Config::FORCE_SELF_URL_PATH_USAGE => ['false', Config::T_BOOL],
 		Config::SINGLE_USER_MODE => [ "",								Config::T_BOOL ],
 		Config::PHP_EXECUTABLE => [ "/usr/bin/php",					Config::T_STRING ],
 		Config::LOCK_DIRECTORY => [ "lock",								Config::T_STRING ],
@@ -272,7 +287,7 @@ class Config {
 		Config::CHECK_FOR_PLUGIN_UPDATES => [ "true",				Config::T_BOOL ],
 		Config::ENABLE_PLUGIN_INSTALLER => [ "true",					Config::T_BOOL ],
 		Config::AUTH_MIN_INTERVAL => [ 5,								Config::T_INT ],
-		Config::HTTP_USER_AGENT => [ 'Tiny Tiny RSS/%s (https://tt-rss.org/)',
+		Config::HTTP_USER_AGENT => [ 'Tiny Tiny RSS/%s (https://github.com/tt-rss/tt-rss)',
 																					Config::T_STRING ],
 		Config::HTTP_429_THROTTLE_INTERVAL => [ 3600,				Config::T_INT ],
 		Config::DISABLE_LOGIN_FORM => [ "",								Config::T_BOOL ],
@@ -296,7 +311,7 @@ class Config {
 	private array $params = [];
 
 	/** @var array<string, mixed> */
-	private array $version = [];
+	private array $version;
 
 	private Db_Migrations $migrations;
 
@@ -312,13 +327,13 @@ class Config {
 	}
 
 	function __construct() {
-		$ref = new ReflectionClass(get_class($this));
+		$ref = new ReflectionClass(static::class);
 
 		foreach ($ref->getConstants() as $const => $cvalue) {
 			if (isset(self::_DEFAULTS[$const])) {
 				$override = getenv(self::_ENVVAR_PREFIX . $const);
 
-				list ($defval, $deftype) = self::_DEFAULTS[$const];
+				[$defval, $deftype] = self::_DEFAULTS[$const];
 
 				$this->params[$cvalue] = [ self::cast_to($override !== false ? $override : $defval, $deftype), $deftype ];
 			}
@@ -348,49 +363,46 @@ class Config {
 	}
 
 	/**
-	 * @return array<string, mixed>|string
+	 * @return array{branch: string, timestamp: int, version: string, commit: string, status: int}|array{version: string}|string
 	 */
 	private function _get_version(bool $as_string = true): array|string {
 		$root_dir = self::get_self_dir();
 
 		if (empty($this->version)) {
-			$this->version["status"] = -1;
-
-			if (getenv("CI_COMMIT_SHORT_SHA") && getenv("CI_COMMIT_TIMESTAMP")) {
-
-				$this->version["branch"] = getenv("CI_COMMIT_BRANCH");
-				$this->version["timestamp"] = strtotime(getenv("CI_COMMIT_TIMESTAMP"));
-				$this->version["version"] = sprintf("%s-%s", date("y.m", $this->version["timestamp"]), getenv("CI_COMMIT_SHORT_SHA"));
-				$this->version["commit"] = getenv("CI_COMMIT_SHORT_SHA");
-				$this->version["status"] = 0;
-
-			} else if (PHP_OS === "Darwin") {
-				$this->version["version"] = "UNKNOWN (Unsupported, Darwin)";
+			if (getenv('CI_COMMIT_SHORT_SHA') && getenv('CI_COMMIT_TIMESTAMP')) {
+				$this->version = [
+					'branch' => getenv('CI_COMMIT_BRANCH'),
+					'timestamp' => strtotime(getenv('CI_COMMIT_TIMESTAMP')),
+					'commit' => getenv('CI_COMMIT_SHORT_SHA'),
+					'status' => 0,
+				];
+				$this->version['version'] = sprintf('%s-%s', date('y.m', $this->version['timestamp']), getenv('CI_COMMIT_SHORT_SHA'));
+			} else if (PHP_OS === 'Darwin') {
+				$this->version = ['version' => 'UNKNOWN (Unsupported, Darwin)', 'status' => -1];
 			} else if (file_exists("$root_dir/version_static.txt")) {
-				$this->version["version"] = trim(file_get_contents("$root_dir/version_static.txt")) . " (Unsupported)";
+				$this->version = ['version' => trim(file_get_contents("$root_dir/version_static.txt")) . ' (Unsupported)', 'status' => -1];
 			} else if (ini_get("open_basedir")) {
-				$this->version["version"] = "UNKNOWN (Unsupported, open_basedir)";
+				$this->version = ['version' => 'UNKNOWN (Unsupported, open_basedir)', 'status' => -1];
 			} else if (is_dir("$root_dir/.git")) {
 				$this->version = self::get_version_from_git($root_dir);
 
-				if ($this->version["status"] != 0) {
-					user_error("Unable to determine version: " . $this->version["version"], E_USER_WARNING);
+				if ($this->version['status'] != 0) {
+					user_error('Unable to determine version: ' . $this->version['version'], E_USER_WARNING);
 
-					$this->version["version"] = "UNKNOWN (Unsupported, Git error)";
-				} else if (!getenv("SCRIPT_ROOT") || !file_exists("/.dockerenv")) {
-					$this->version["version"] .= " (Unsupported)";
+					$this->version = ['version' => 'UNKNOWN (Unsupported, Git error)', 'status' => -1];
+				} else if (!getenv('SCRIPT_ROOT') || !file_exists('/.dockerenv')) {
+					$this->version['version'] .= ' (Unsupported)';
 				}
-
 			} else {
-				$this->version["version"] = "UNKNOWN (Unsupported)";
+				$this->version = ['version' => 'UNKNOWN (Unsupported)', 'status' => -1];
 			}
 		}
 
-		return $as_string ? $this->version["version"] : $this->version;
+		return $as_string ? $this->version['version'] : $this->version;
 	}
 
 	/**
-	 * @return array<string, int|string>
+	 * @return array{status: int, version: string, branch: string, commit: string, timestamp: string}
 	 */
 	static function get_version_from_git(string $dir): array {
 		$descriptorspec = [
@@ -403,10 +415,10 @@ class Config {
 			"version" => "",
 			"branch" => "",
 			"commit" => "",
-			"timestamp" => 0,
+			"timestamp" => "0",
 		];
 
-		$proc = proc_open("git --no-pager log --pretty=\"version-%ct-%h\" -n1 HEAD",
+		$proc = proc_open('git --no-pager log --pretty="version-%ct-%h" --abbrev=8 -n1 HEAD',
 						$descriptorspec, $pipes, $dir);
 
 		if (is_resource($proc)) {
@@ -416,7 +428,7 @@ class Config {
 
 			$rv["status"] = $status;
 
-			list($check, $timestamp, $commit) = explode("-", $stdout);
+			[$check, $timestamp, $commit] = explode("-", $stdout);
 
 			if ($check == "version") {
 
@@ -468,9 +480,9 @@ class Config {
 	}
 
 	private function _get(string $param): bool|int|string {
-		list ($value, $type_hint) = $this->params[$param];
+		[$value, $type_hint] = $this->params[$param];
 
-		return $this->cast_to($value, $type_hint);
+		return static::cast_to($value, $type_hint);
 	}
 
 	private function _add(string $param, string $default, int $type_hint): void {
@@ -496,21 +508,23 @@ class Config {
 			(!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https');
 	}
 
-	/** returns fully-qualified external URL to tt-rss (no trailing slash)
-	 * SELF_URL_PATH configuration variable is used as a fallback for the CLI SAPI
-	 * */
+	/**
+	 * Returns the fully-qualified external URL to tt-rss (with no trailing slash).
+	 * The SELF_URL_PATH configuration variable is always used when running under
+	 * the CLI SAPI or when FORCE_SELF_URL_PATH_USAGE is enabled.
+	 */
 	static function get_self_url(bool $always_detect = false) : string {
-		if (!$always_detect && php_sapi_name() == "cli") {
-			return self::get(Config::SELF_URL_PATH);
+		if ((!$always_detect && php_sapi_name() == 'cli') || self::get(self::FORCE_SELF_URL_PATH_USAGE)) {
+			$self_url_path = self::get(Config::SELF_URL_PATH);
 		} else {
 			$proto = self::is_server_https() ? 'https' : 'http';
 
 			$self_url_path = $proto . '://' . $_SERVER["HTTP_HOST"] . parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH);
 			$self_url_path = preg_replace("/(\/api\/{1,})?(\w+\.php)?(\?.*$)?$/", "", $self_url_path);
 			$self_url_path = preg_replace("/(\/plugins(.local)?)\/.{1,}$/", "", $self_url_path);
-
-			return rtrim($self_url_path, "/");
 		}
+
+		return rtrim($self_url_path, '/');
 	}
 	/* sanity check stuff */
 
@@ -522,99 +536,81 @@ class Config {
 
 			it is a bit of a hack, maybe ORM should be initialized somewhere else (functions.php?)
 		*/
-
 		$pdo = Db::pdo();
 
 		$errors = [];
 
 		if (!str_contains(self::get(Config::PLUGINS), "auth_")) {
-			array_push($errors, "Please enable at least one authentication module via PLUGINS");
+			$errors[] = 'Please enable at least one authentication module via PLUGINS';
 		}
 
 		/* we assume our dependencies are sane under docker, so some sanity checks are skipped.
 			this also allows tt-rss process to run under root if requested (I'm using this for development
 			under podman because of uidmapping issues with rootless containers, don't use in production -fox) */
-		if (!getenv("container")) {
-			if (function_exists('posix_getuid') && posix_getuid() == 0) {
-				array_push($errors, "Please don't run this script as root.");
-			}
+		if (!getenv('container')) {
+			if (function_exists('posix_getuid') && posix_getuid() == 0)
+				$errors[] = "Please don't run this script as root.";
 
 			if (version_compare(PHP_VERSION, '8.2.0', '<')) {
-				array_push($errors, "PHP version 8.2.0 or newer required. You're using " . PHP_VERSION . ".");
+				$errors[] = "PHP version 8.2.0 or newer required. You're using " . PHP_VERSION . '.';
 			}
 
-			if (!class_exists("UConverter")) {
-				array_push($errors, "PHP UConverter class is missing, it's provided by the Internationalization (intl) module.");
-			}
+			if (!class_exists('UConverter'))
+				$errors[] = "PHP UConverter class is missing, it's provided by the Internationalization (intl) module.";
 
-			if (!function_exists("curl_init") && !ini_get("allow_url_fopen")) {
-				array_push($errors, "PHP configuration option allow_url_fopen is disabled, and CURL functions are not present. Either enable allow_url_fopen or install PHP extension for CURL.");
-			}
+			if (!function_exists('curl_init') && !ini_get('allow_url_fopen'))
+				$errors[] = 'PHP configuration option allow_url_fopen is disabled, and CURL functions are not present. Either enable allow_url_fopen or install PHP extension for CURL.';
 
-			if (!function_exists("json_encode")) {
-				array_push($errors, "PHP support for JSON is required, but was not found.");
-			}
+			if (!function_exists('json_encode'))
+				$errors[] = 'PHP support for JSON is required, but was not found.';
 
-			if (!function_exists("flock")) {
-				array_push($errors, "PHP support for flock() function is required.");
-			}
+			if (!function_exists('flock'))
+				$errors[] = 'PHP support for flock() function is required.';
 
-			if (!class_exists("PDO")) {
-				array_push($errors, "PHP support for PDO is required but was not found.");
-			}
+			if (!class_exists('PDO'))
+				$errors[] = 'PHP support for PDO is required but was not found.';
 
-			if (!function_exists("mb_strlen")) {
-				array_push($errors, "PHP support for mbstring functions is required but was not found.");
-			}
+			if (!function_exists('mb_strlen'))
+				$errors[] = 'PHP support for mbstring functions is required but was not found.';
 
-			if (!function_exists("hash")) {
-				array_push($errors, "PHP support for hash() function is required but was not found.");
-			}
+			if (!function_exists('hash'))
+				$errors[] = 'PHP support for hash() function is required but was not found.';
 
-			if (ini_get("safe_mode")) {
-				array_push($errors, "PHP safe mode setting is obsolete and not supported by tt-rss.");
-			}
+			if (ini_get('safe_mode'))
+				$errors[] = 'PHP safe mode setting is obsolete and not supported by tt-rss.';
 
-			if (!function_exists("mime_content_type")) {
-				array_push($errors, "PHP function mime_content_type() is missing, try enabling fileinfo module.");
-			}
+			if (!function_exists('mime_content_type'))
+				$errors[] = 'PHP function mime_content_type() is missing, try enabling fileinfo module.';
 
-			if (!class_exists("DOMDocument")) {
-				array_push($errors, "PHP support for DOMDocument is required, but was not found.");
-			}
+			if (!class_exists('DOMDocument'))
+				$errors[] = 'PHP support for DOMDocument is required, but was not found.';
 		}
 
-		if (!is_writable(self::get(Config::CACHE_DIR) . "/images")) {
-			array_push($errors, "Image cache is not writable (chmod -R 777 ".self::get(Config::CACHE_DIR)."/images)");
-		}
+		if (!is_writable(self::get(Config::CACHE_DIR) . '/images'))
+			$errors[] = 'Image cache is not writable (chmod -R 777 ' . self::get(Config::CACHE_DIR) . '/images)';
 
-		if (!is_writable(self::get(Config::CACHE_DIR) . "/upload")) {
-			array_push($errors, "Upload cache is not writable (chmod -R 777 ".self::get(Config::CACHE_DIR)."/upload)");
-		}
+		if (!is_writable(self::get(Config::CACHE_DIR) . '/upload'))
+			$errors[] = 'Upload cache is not writable (chmod -R 777 ' . self::get(Config::CACHE_DIR) . '/upload)';
 
-		if (!is_writable(self::get(Config::CACHE_DIR) . "/export")) {
-			array_push($errors, "Data export cache is not writable (chmod -R 777 ".self::get(Config::CACHE_DIR)."/export)");
-		}
+		if (!is_writable(self::get(Config::CACHE_DIR) . '/export'))
+			$errors[] = 'Data export cache is not writable (chmod -R 777 ' . self::get(Config::CACHE_DIR) . '/export)';
 
-		if (!is_writable(self::get(Config::LOCK_DIRECTORY))) {
-			array_push($errors, "LOCK_DIRECTORY is not writable (chmod -R 777 ".self::get(Config::LOCK_DIRECTORY).").\n");
-		}
+		if (!is_writable(self::get(Config::LOCK_DIRECTORY)))
+			$errors[] = 'LOCK_DIRECTORY is not writable (chmod -R 777 ' . self::get(Config::LOCK_DIRECTORY) . ').';
 
 		// ttrss_users won't be there on initial startup (before migrations are done)
 		if (!Config::is_migration_needed() && self::get(Config::SINGLE_USER_MODE)) {
-			if (UserHelper::get_login_by_id(1) != "admin") {
-				array_push($errors, "SINGLE_USER_MODE is enabled but default admin account (ID: 1) is not found.");
-			}
+			if (UserHelper::get_login_by_id(1) != 'admin')
+				$errors[] = 'SINGLE_USER_MODE is enabled but default admin account (ID: 1) is not found.';
 		}
 
 		// skip check for CLI scripts so that we could install database schema if it is missing.
-		if (php_sapi_name() != "cli") {
-			if (self::get_schema_version() < 0) {
-				array_push($errors, "Base database schema is missing. Either load it manually or perform a migration (<code>update.php --update-schema</code>)");
-			}
+		if (php_sapi_name() != 'cli') {
+			if (self::get_schema_version() < 0)
+				$errors[] = 'Base database schema is missing. Either load it manually or perform a migration (<code>update.php --update-schema</code>)';
 		}
 
-		if (count($errors) > 0 && php_sapi_name() != "cli") {
+		if (count($errors) > 0 && php_sapi_name() != 'cli') {
 			http_response_code(503); ?>
 
 			<!DOCTYPE html>
@@ -632,9 +628,9 @@ class Config {
 
 						<?php foreach ($errors as $error) { echo self::format_error($error); } ?>
 
-						<p>You might want to check the tt-rss <a target="_blank" href="https://tt-rss.org/wiki/InstallationNotes/">wiki</a> or
-							<a target="_blank" href="https://community.tt-rss.org/">forums</a> for more information. Please search the forums before creating a new topic
-							for your question.</p>
+						<p>You might want to check the tt-rss <a target="_blank" rel="noreferrer" href="https://tt-rss.org/">documentation</a> or
+							<a target="_blank" rel="noreferrer" href="https://github.com/tt-rss/tt-rss/discussions">discussions</a> for more information.
+							Please search before creating a new topic for your question.</p>
 					</div>
 				</body>
 			</html>

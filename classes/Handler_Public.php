@@ -21,7 +21,7 @@ class Handler_Public extends Handler {
 		if (!$limit)
 			$limit = 60;
 
-		list($override_order, $skip_first_id_check) = Feeds::_order_to_override_query($order);
+		[$override_order, $skip_first_id_check] = Feeds::_order_to_override_query($order);
 
 		if (!$override_order) {
 			$override_order = match (true) {
@@ -31,7 +31,7 @@ class Handler_Public extends Handler {
 			};
 		}
 
-		$params = array(
+		$params = [
 			"owner_uid" => $owner_uid,
 			"feed" => $feed,
 			"limit" => $limit,
@@ -43,7 +43,7 @@ class Handler_Public extends Handler {
 			"ignore_vfeed_group" => true,
 			"offset" => $offset,
 			"start_ts" => $start_ts
-		);
+		];
 
 		if (!$is_cat && is_numeric($feed) && $feed < PLUGIN_FEED_BASE_INDEX && $feed > LABEL_BASE_INDEX) {
 			// TODO: _ENABLED_PLUGINS is profile-specific, so use of the default profile's plugins here should
@@ -167,7 +167,7 @@ class Handler_Public extends Handler {
 					$tpl->setVariable('ARTICLE_ENCLOSURE_LENGTH', "", true);
 				}
 
-				list ($og_image, $og_stream) = Article::_get_image($enclosures, $line['content'], $feed_site_url, $line);
+				[$og_image, $og_stream] = Article::_get_image($enclosures, $line['content'], $feed_site_url, $line);
 
 				$tpl->setVariable('ARTICLE_OG_IMAGE', $og_image, true);
 
@@ -236,7 +236,7 @@ class Handler_Public extends Handler {
 				$enclosures = Article::_get_enclosures($line["id"]);
 
 				if (count($enclosures) > 0) {
-					$article['enclosures'] = array();
+					$article['enclosures'] = [];
 
 					foreach ($enclosures as $e) {
 						$article['enclosures'][] = [
@@ -247,7 +247,7 @@ class Handler_Public extends Handler {
 					}
 				}
 
-				array_push($feed['articles'], $article);
+				$feed['articles'][] = $article;
 			}
 
 			header("Content-Type: application/json; charset=utf-8");
@@ -265,12 +265,10 @@ class Handler_Public extends Handler {
 		if ($uid) {
 			print Feeds::_get_global_unread($uid);
 
-			if ($fresh) {
-				print ";";
-				print Feeds::_get_counters(Feeds::FEED_FRESH, false, true, $uid);
-			}
+			if ($fresh)
+				print ';' . Feeds::_get_counters(Feeds::FEED_FRESH, false, true, $uid);
 		} else {
-			print "-1;User not found";
+			print '-1;User not found';
 		}
 	}
 
@@ -287,11 +285,12 @@ class Handler_Public extends Handler {
 				->order_by_asc('title')
 				->find_many();
 
-			$rv = [ [ "value" => 0, "label" => __("Default profile") ] ];
+			$rv = [
+				['label' => __('Default profile'), 'value' => 0],
+			];
 
-			foreach ($profiles as $profile) {
-				array_push($rv, [ "label" => $profile->title, "value" => $profile->id ]);
-			}
+			foreach ($profiles as $profile)
+				$rv[] = ['label' => $profile->title, 'value' => $profile->id];
 		}
 
 		print json_encode($rv);
@@ -426,6 +425,9 @@ class Handler_Public extends Handler {
 		startup_gettext();
 		session_start();
 
+		if (empty($_SESSION['csrf_token']))
+			$_SESSION['csrf_token'] = bin2hex(get_random_bytes(16));
+
 		$hash = clean($_REQUEST["hash"] ?? '');
 
 		header('Content-Type: text/html; charset=utf-8');
@@ -449,8 +451,6 @@ class Handler_Public extends Handler {
 		<div class='container'>
 
 		<script type="text/javascript">
-			const __csrf_token = "<?= $_SESSION["csrf_token"]; ?>";
-
 			const __default_light_theme = "<?= get_theme_path(Config::get(Config::DEFAULT_LIGHT_THEME), 'themes/light.css') ?>";
 			const __default_dark_theme = "<?= get_theme_path(Config::get(Config::DEFAULT_DARK_THEME), 'themes/night.css') ?>";
 		</script>
@@ -493,7 +493,7 @@ class Handler_Public extends Handler {
 					->find_one();
 
 				if ($user) {
-					list($timestamp, $resetpass_token) = explode(":", $user->resetpass_token);
+					[$timestamp, $resetpass_token] = explode(":", $user->resetpass_token);
 
 					if ($timestamp && $resetpass_token &&
 						$timestamp >= time() - 15*60*60 &&
@@ -523,6 +523,7 @@ class Handler_Public extends Handler {
 			print "<form method='POST' action='public.php'>
 				<input type='hidden' name='method' value='do'>
 				<input type='hidden' name='op' value='forgotpass'>
+				<input type='hidden' name='csrf_token' value='{$_SESSION['csrf_token']}'>
 
 				<fieldset>
 				<label>".__("Login:")."</label>
@@ -534,8 +535,8 @@ class Handler_Public extends Handler {
 				<input dojoType='dijit.form.TextBox' type='email' name='email' value='' required>
 				</fieldset>";
 
-			$_SESSION["pwdreset:testvalue1"] = rand(1,10);
-			$_SESSION["pwdreset:testvalue2"] = rand(1,10);
+			$_SESSION["pwdreset:testvalue1"] = random_int(1,10);
+			$_SESSION["pwdreset:testvalue2"] = random_int(1,10);
 
 			print "<fieldset>
 				<label>".T_sprintf("How much is %d + %d:", $_SESSION["pwdreset:testvalue1"], $_SESSION["pwdreset:testvalue2"])."</label>
@@ -553,8 +554,9 @@ class Handler_Public extends Handler {
 			$login = clean($_POST["login"]);
 			$email = clean($_POST["email"]);
 			$test = clean($_POST["test"]);
+			$csrf_token = clean($_POST['csrf_token'] ?? '');
 
-			if ($test != ($_SESSION["pwdreset:testvalue1"] + $_SESSION["pwdreset:testvalue2"]) || !$email || !$login) {
+			if (!validate_csrf($csrf_token) || $test != ($_SESSION['pwdreset:testvalue1'] + $_SESSION['pwdreset:testvalue2']) || !$email || !$login) {
 				print_error(__('Some of the required form parameters are missing or incorrect.'));
 
 				print "<form method='GET' action='public.php'>
@@ -563,8 +565,8 @@ class Handler_Public extends Handler {
 					</form>";
 			} else {
 				// prevent submitting this form multiple times
-				$_SESSION["pwdreset:testvalue1"] = rand(1, 1000);
-				$_SESSION["pwdreset:testvalue2"] = rand(1, 1000);
+				$_SESSION["pwdreset:testvalue1"] = random_int(1, 1000);
+				$_SESSION["pwdreset:testvalue2"] = random_int(1, 1000);
 
 				$user = ORM::for_table('ttrss_users')
 					->select('id')
@@ -628,7 +630,7 @@ class Handler_Public extends Handler {
 
 		if (!Config::get(Config::SINGLE_USER_MODE) && ($_SESSION["access_level"] ?? 0) < 10) {
 			$_SESSION["login_error_msg"] = __("Your access level is insufficient to run this script.");
-			$this->_render_login_form();
+			static::_render_login_form();
 			exit;
 		}
 
@@ -684,7 +686,7 @@ class Handler_Public extends Handler {
 				}
 
 				function confirmDbUpdate() {
-					return confirm(__("Proceed with update?"));
+					return confirm(<?= json_encode(__('Proceed with update?')) ?>);
 				}
 			</script>
 
@@ -767,7 +769,7 @@ class Handler_Public extends Handler {
 	}
 
 	function cached(): void {
-		list ($cache_dir, $filename) = explode("/", $_GET["file"], 2);
+		[$cache_dir, $filename] = explode("/", $_GET["file"], 2);
 
 		// we do not allow files with extensions at the moment
 		$filename = str_replace(".", "", $filename);
@@ -775,11 +777,6 @@ class Handler_Public extends Handler {
 		$cache = DiskCache::instance($cache_dir);
 
 		if ($cache->exists($filename)) {
-			$size = $cache->get_size($filename);
-
-			if ($size && $size > 0)
-				header("Content-Length: $size");
-
 			$cache->send($filename);
 		} else {
 			header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
@@ -847,7 +844,7 @@ class Handler_Public extends Handler {
 		if ($return_to)
 			$_REQUEST['return'] = $return_to;
 
-		require_once "login_form.php";
+		require_once __DIR__ . '/../include/login_form.php';
 		exit;
 	}
 

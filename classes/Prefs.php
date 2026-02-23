@@ -24,6 +24,7 @@ class Prefs {
 	//const STRIP_UNSAFE_TAGS = "STRIP_UNSAFE_TAGS";
 	const BLACKLISTED_TAGS = "BLACKLISTED_TAGS";
 	const FRESH_ARTICLE_MAX_AGE = "FRESH_ARTICLE_MAX_AGE";
+	const RECENTLY_READ_MAX_AGE = 'RECENTLY_READ_MAX_AGE';
 	const DIGEST_CATCHUP = "DIGEST_CATCHUP";
 	const CDM_EXPANDED = "CDM_EXPANDED";
 	const PURGE_UNREAD_ARTICLES = "PURGE_UNREAD_ARTICLES";
@@ -86,6 +87,7 @@ class Prefs {
 		//Prefs::STRIP_UNSAFE_TAGS => [ true, Config::T_BOOL ],
 		Prefs::BLACKLISTED_TAGS => [ 'main, generic, misc, uncategorized, blog, blogroll, general, news', Config::T_STRING ],
 		Prefs::FRESH_ARTICLE_MAX_AGE => [ 24, Config::T_INT ],
+		Prefs::RECENTLY_READ_MAX_AGE => [ 24, Config::T_INT ],
 		Prefs::DIGEST_CATCHUP => [ false, Config::T_BOOL ],
 		Prefs::CDM_EXPANDED => [ true, Config::T_BOOL ],
 		Prefs::PURGE_UNREAD_ARTICLES => [ true, Config::T_BOOL ],
@@ -163,10 +165,7 @@ class Prefs {
 	}
 
 	static function get_default(string $pref_name): bool|int|null|string {
-		if (self::is_valid($pref_name))
-			return self::_DEFAULTS[$pref_name][0];
-		else
-			return null;
+		return self::is_valid($pref_name) ? self::_DEFAULTS[$pref_name][0] : null;
 	}
 
 	function __construct() {
@@ -186,29 +185,29 @@ class Prefs {
 	}
 
 	/**
-	 * @return array<int, array<string, bool|int|null|string>>
+	 * @return array<int, array{pref_name: string, value: bool|int|string|null, type_hint: Config::T_*}>
 	 */
 	static function get_all(int $owner_uid, ?int $profile_id = null): array {
 		return self::get_instance()->_get_all($owner_uid, $profile_id);
 	}
 
 	/**
-	 * @return array<int, array<string, bool|int|null|string>>
+	 * @return array<int, array{pref_name: string, value: bool|int|string|null, type_hint: Config::T_*}>
 	 */
 	private function _get_all(int $owner_uid, ?int $profile_id = null): array {
 		$rv = [];
 
-		$ref = new ReflectionClass(get_class($this));
+		$ref = new ReflectionClass(static::class);
 
 		foreach ($ref->getConstants() as $const => $cvalue) {
 			if (isset($this::_DEFAULTS[$const])) {
-				list ($def_val, $type_hint) = $this::_DEFAULTS[$const];
+				[$def_val, $type_hint] = $this::_DEFAULTS[$const];
 
-				array_push($rv, [
-					"pref_name" => $const,
-					"value" => $this->_get($const, $owner_uid, $profile_id),
-					"type_hint" => $type_hint,
-				]);
+				$rv[] = [
+					'pref_name' => $const,
+					'value' => $this->_get($const, $owner_uid, $profile_id),
+					'type_hint' => $type_hint,
+				];
 			}
 		}
 
@@ -216,13 +215,16 @@ class Prefs {
 	}
 
 	private function cache_all(int $owner_uid, ?int $profile_id): void {
-		if (!$profile_id) $profile_id = null;
+		// If explicitly null, 0 (e.g. from the frontend), or otherwise falsy,
+		// normalize to null to represent the default profile.
+		if (!$profile_id)
+			$profile_id = null;
 
 		// fill cache with defaults
-		$ref = new ReflectionClass(get_class($this));
+		$ref = new ReflectionClass(static::class);
 		foreach ($ref->getConstants() as $const => $cvalue) {
 			if (isset($this::_DEFAULTS[$const])) {
-				list ($def_val, $type_hint) = $this::_DEFAULTS[$const];
+				[$def_val, $type_hint] = $this::_DEFAULTS[$const];
 
 				$this->_set_cache($const, $def_val, $owner_uid, $profile_id);
 			}
@@ -250,7 +252,7 @@ class Prefs {
 		if (isset(self::_DEFAULTS[$pref_name])) {
 			if (!$profile_id || in_array($pref_name, self::_PROFILE_BLACKLIST)) $profile_id = null;
 
-			list ($def_val, $type_hint) = self::_DEFAULTS[$pref_name];
+			[$def_val, $type_hint] = self::_DEFAULTS[$pref_name];
 
 			if ($this->_is_cached($pref_name, $owner_uid, $profile_id)) {
 				$cached_value = $this->_get_cache($pref_name, $owner_uid, $profile_id);
@@ -303,13 +305,16 @@ class Prefs {
 	}
 
 	private function _set(string $pref_name, bool|int|string $value, int $owner_uid, ?int $profile_id, bool $strip_tags = true): bool {
-		if (!$profile_id) $profile_id = null;
+		// If explicitly null, 0 (e.g. from the frontend), or otherwise falsy,
+		// normalize to null to represent the default profile.
+		if (!$profile_id)
+			$profile_id = null;
 
 		if ($profile_id && in_array($pref_name, self::_PROFILE_BLACKLIST))
 			return false;
 
 		if (isset(self::_DEFAULTS[$pref_name])) {
-			list ($def_val, $type_hint) = self::_DEFAULTS[$pref_name];
+			[$def_val, $type_hint] = self::_DEFAULTS[$pref_name];
 
 			if ($strip_tags)
 				$value = trim(strip_tags($value));
@@ -355,7 +360,10 @@ class Prefs {
 		if (Config::get_schema_version() < 141)
 			return;
 
-		if (!$profile_id) $profile_id = null;
+		// If explicitly null, 0 (e.g. from the frontend), or otherwise falsy,
+		// normalize to null to represent the default profile.
+		if (!$profile_id)
+			$profile_id = null;
 
 		if (!$this->_get(Prefs::_PREFS_MIGRATED, $owner_uid, $profile_id)) {
 
@@ -363,7 +371,7 @@ class Prefs {
 
 			try {
 				$this->pdo->beginTransaction();
-			} catch (PDOException $e) {
+			} catch (PDOException) {
 				$in_nested_tr = true;
 			}
 
@@ -374,7 +382,7 @@ class Prefs {
 
 			while ($row = $sth->fetch(PDO::FETCH_ASSOC)) {
 				if (isset(self::_DEFAULTS[$row["pref_name"]])) {
-					list ($def_val, $type_hint) = self::_DEFAULTS[$row["pref_name"]];
+					[$def_val, $type_hint] = self::_DEFAULTS[$row["pref_name"]];
 
 					$user_val = Config::cast_to($row["value"], $type_hint);
 
@@ -394,7 +402,10 @@ class Prefs {
 	}
 
 	static function reset(int $owner_uid, ?int $profile_id): void {
-		if (!$profile_id) $profile_id = null;
+		// If explicitly null, 0 (e.g. from the frontend), or otherwise falsy,
+		// normalize to null to represent the default profile.
+		if (!$profile_id)
+			$profile_id = null;
 
 		$sth = Db::pdo()->prepare("DELETE FROM ttrss_user_prefs2
 								WHERE owner_uid = :uid AND pref_name != :mig_key AND

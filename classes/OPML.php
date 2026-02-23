@@ -2,18 +2,16 @@
 class OPML extends Handler_Protected {
 
 	function csrf_ignore(string $method): bool {
-		$csrf_ignored = array("export", "import");
-
-		return array_search($method, $csrf_ignored) !== false;
+		return in_array($method, ['export', 'import']);
 	}
 
 	/**
 	 * @return bool|int|null false if writing the file failed, true if printing succeeded, int if bytes were written to a file, or null if $owner_uid is missing
 	 */
 	function export(): bool|int|null {
-		$output_name = sprintf("tt-rss_%s_%s.opml", $_SESSION["name"], date("Y-m-d"));
-		$include_settings = $_REQUEST["include_settings"] == "1";
-		$owner_uid = $_SESSION["uid"];
+		$output_name = sprintf('tt-rss_%s_%s.opml', $_SESSION['name'], date('Y-m-d'));
+		$include_settings = ($_REQUEST['include_settings'] ?? null) == '1';
+		$owner_uid = $_SESSION['uid'];
 
 		$rc = $this->opml_export($output_name, $owner_uid, false, $include_settings);
 
@@ -23,11 +21,7 @@ class OPML extends Handler_Protected {
 	// Export
 
 	private function opml_export_category(int $owner_uid, int $cat_id, bool $hide_private_feeds = false, bool $include_settings = true): string {
-
-		if ($hide_private_feeds)
-			$hide_qpart = "(private IS false AND auth_login = '' AND auth_pass = '')";
-		else
-			$hide_qpart = "true";
+		$hide_qpart = $hide_private_feeds ? "(private IS false AND auth_login = '' AND auth_pass = '')" : 'true';
 
 		$out = "";
 
@@ -84,11 +78,7 @@ class OPML extends Handler_Protected {
 				$ttrss_specific_qpart = "";
 			}
 
-			if ($site_url) {
-				$html_url_qpart = "htmlUrl=\"$site_url\"";
-			} else {
-				$html_url_qpart = "";
-			}
+			$html_url_qpart = $site_url ? "htmlUrl=\"$site_url\"" : '';
 
 			$out .= "<outline type=\"rss\" text=\"$title\" xmlUrl=\"$url\" $ttrss_specific_qpart $html_url_qpart/>\n";
 		}
@@ -165,8 +155,8 @@ class OPML extends Handler_Protected {
 			$sth->execute([$owner_uid]);
 
 			while ($line = $sth->fetch(PDO::FETCH_ASSOC)) {
-				$line["rules"] = array();
-				$line["actions"] = array();
+				$line["rules"] = [];
+				$line["actions"] = [];
 
 				$tmph = $this->pdo->prepare("SELECT * FROM ttrss_filters2_rules
 					WHERE filter_id = ?");
@@ -182,7 +172,7 @@ class OPML extends Handler_Protected {
 						if ($cat_filter && $tmp_line["cat_id"] || $tmp_line["feed_id"]) {
 							$tmp_line["feed"] = Feeds::_get_title(
 								$cat_filter ? $tmp_line["cat_id"] : $tmp_line["feed_id"],
-								$_SESSION['uid'],
+								$owner_uid,
 								$cat_filter);
 						} else {
 							$tmp_line["feed"] = "";
@@ -190,20 +180,11 @@ class OPML extends Handler_Protected {
 					} else {
 						$match = [];
 						foreach (json_decode($tmp_line["match_on"], true) as $feed_id) {
-
-							if (str_starts_with($feed_id, "CAT:")) {
-								$feed_id = (int)substr($feed_id, 4);
-								if ($feed_id) {
-									array_push($match, [Feeds::_get_cat_title($feed_id, $owner_uid), true, false]);
-								} else {
-									array_push($match, [0, true, true]);
-								}
+							if (str_starts_with($feed_id, 'CAT:')) {
+								$feed_id = (int) substr($feed_id, 4);
+								$match[] = $feed_id ? [Feeds::_get_cat_title($feed_id, $owner_uid), true, false] : [0, true, true];
 							} else {
-								if ($feed_id) {
-									array_push($match, [Feeds::_get_title((int)$feed_id, $owner_uid), false, false]);
-								} else {
-									array_push($match, [0, false, true]);
-								}
+								$match[] = $feed_id ? [Feeds::_get_title((int)$feed_id, $owner_uid), false, false] : [0, false, true];
 							}
 						}
 
@@ -214,7 +195,7 @@ class OPML extends Handler_Protected {
 					unset($tmp_line["feed_id"]);
 					unset($tmp_line["cat_id"]);
 
-					array_push($line["rules"], $tmp_line);
+					$line['rules'][] = $tmp_line;
 				}
 
 				$tmph = $this->pdo->prepare("SELECT * FROM ttrss_filters2_actions
@@ -225,7 +206,7 @@ class OPML extends Handler_Protected {
 					unset($tmp_line["id"]);
 					unset($tmp_line["filter_id"]);
 
-					array_push($line["actions"], $tmp_line);
+					$line['actions'][] = $tmp_line;
 				}
 
 				unset($line["id"]);
@@ -252,6 +233,7 @@ class OPML extends Handler_Protected {
 		$outlines = $xpath->query("//outline[@title]");
 
 		// cleanup empty categories
+		/** @var DOMElement $node */
 		foreach ($outlines as $node) {
 			if ($node->getElementsByTagName('outline')->length == 0)
 				$node->parentNode->removeChild($node);
@@ -278,13 +260,9 @@ class OPML extends Handler_Protected {
 	private function opml_import_feed(DOMNode $node, int $cat_id, int $owner_uid, int $nest): void {
 		$attrs = $node->attributes;
 
-		$feed_title = mb_substr($attrs->getNamedItem('text')->nodeValue, 0, 250);
-		if (!$feed_title) $feed_title = mb_substr($attrs->getNamedItem('title')->nodeValue, 0, 250);
-
-		$feed_url = $attrs->getNamedItem('xmlUrl')->nodeValue;
-		if (!$feed_url) $feed_url = $attrs->getNamedItem('xmlURL')->nodeValue;
-
-		$site_url = mb_substr($attrs->getNamedItem('htmlUrl')->nodeValue, 0, 250);
+		$feed_title = mb_substr($attrs->getNamedItem('text')->nodeValue ?? $attrs->getNamedItem('title')->nodeValue ?? '', 0, 250);
+		$feed_url = $attrs->getNamedItem('xmlUrl')->nodeValue ?? $attrs->getNamedItem('xmlURL')?->nodeValue;
+		$site_url = mb_substr($attrs->getNamedItem('htmlUrl')->nodeValue ?? '', 0, 250);
 
 		if ($feed_url) {
 			$sth = $this->pdo->prepare("SELECT id FROM ttrss_feeds WHERE
@@ -299,13 +277,13 @@ class OPML extends Handler_Protected {
 
 				if (!$cat_id) $cat_id = null;
 
-				$update_interval = (int) $attrs->getNamedItem('ttrssUpdateInterval')->nodeValue;
+				$update_interval = (int) $attrs->getNamedItem('ttrssUpdateInterval')?->nodeValue;
 				if (!$update_interval) $update_interval = 0;
 
-				$order_id = (int) $attrs->getNamedItem('ttrssSortOrder')->nodeValue;
+				$order_id = (int) $attrs->getNamedItem('ttrssSortOrder')?->nodeValue;
 				if (!$order_id) $order_id = 0;
 
-				$purge_interval = (int) $attrs->getNamedItem('ttrssPurgeInterval')->nodeValue;
+				$purge_interval = (int) $attrs->getNamedItem('ttrssPurgeInterval')?->nodeValue;
 				if (!$purge_interval) $purge_interval = 0;
 
 				$sth = $this->pdo->prepare("INSERT INTO ttrss_feeds
@@ -391,21 +369,15 @@ class OPML extends Handler_Protected {
 							$match_on = [];
 
 							foreach ($rule["match"] as $match) {
-								list ($name, $is_cat, $is_id) = $match;
+								[$name, $is_cat, $is_id] = $match;
 
 								if ($is_id) {
-									array_push($match_on, ($is_cat ? "CAT:" : "") . $name);
+									$match_on[] = ($is_cat ? 'CAT:' : '') . $name;
 								} else {
-
 									$match_id = Feeds::_find_by_title($name, $is_cat, $owner_uid);
 
-									if ($match_id) {
-										if ($is_cat) {
-											array_push($match_on, "CAT:$match_id");
-										} else {
-											array_push($match_on, $match_id);
-										}
-									}
+									if ($match_id)
+											$match_on[] = $is_cat ? "CAT:$match_id" : $match_id;
 
 									/*if (!$is_cat) {
 										$tsth = $this->pdo->prepare("SELECT id FROM ttrss_feeds
@@ -513,22 +485,20 @@ class OPML extends Handler_Protected {
 			if (!$cat_title)
 				$cat_title = mb_substr($root_node->attributes->getNamedItem('title')->nodeValue, 0, 250);
 
-			if (!in_array($cat_title, array("tt-rss-filters", "tt-rss-labels", "tt-rss-prefs"))) {
+			if (!in_array($cat_title, ['tt-rss-filters', 'tt-rss-labels', 'tt-rss-prefs'])) {
 				$cat_id = $this->get_feed_category($cat_title, $owner_uid, $parent_id);
 
 				if ($cat_id === 0) {
-					$order_id = (int) $root_node->attributes->getNamedItem('ttrssSortOrder')->nodeValue;
+					$order_id = (int) $root_node->attributes->getNamedItem('ttrssSortOrder')?->nodeValue;
 
-					Feeds::_add_cat($cat_title, $owner_uid, $parent_id ? $parent_id : null, (int)$order_id);
+					Feeds::_add_cat($cat_title, $owner_uid, $parent_id ?: null, $order_id);
 					$cat_id = $this->get_feed_category($cat_title, $owner_uid, $parent_id);
 				}
-
 			} else {
 				$cat_id = 0;
 			}
 
 			$outlines = $root_node->childNodes;
-
 		} else {
 			$xpath = new DOMXPath($doc);
 			$outlines = $xpath->query("//opml/body/outline");
@@ -538,27 +508,19 @@ class OPML extends Handler_Protected {
 		}
 
 		//$this->opml_notice("[CAT] $cat_title id: $cat_id P_id: $parent_id");
-		$this->opml_notice(T_sprintf("Processing category: %s", $cat_title ? $cat_title : __("Uncategorized")), $nest);
+		$this->opml_notice(T_sprintf("Processing category: %s", $cat_title ?: __("Uncategorized")), $nest);
 
+		/** @var DOMElement $node */
 		foreach ($outlines as $node) {
-			if ($node->hasAttributes() && strtolower($node->tagName) == "outline") {
+			if ($node->hasAttributes() && strtolower($node->tagName) == 'outline') {
 				$attrs = $node->attributes;
-				$node_cat_title = $attrs->getNamedItem('text') ? $attrs->getNamedItem('text')->nodeValue : false;
-
-				if (!$node_cat_title)
-					$node_cat_title = $attrs->getNamedItem('title') ? $attrs->getNamedItem('title')->nodeValue : false;
-
-				$node_feed_url = $attrs->getNamedItem('xmlUrl') ? $attrs->getNamedItem('xmlUrl')->nodeValue : false;
+				$node_cat_title = $attrs->getNamedItem('text')->nodeValue ?? $attrs->getNamedItem('title')?->nodeValue;
+				$node_feed_url = $attrs->getNamedItem('xmlUrl')?->nodeValue;
 
 				if ($node_cat_title && !$node_feed_url) {
 					$this->opml_import_category($doc, $node, $owner_uid, $cat_id, $nest+1);
 				} else {
-
-					if (!$cat_id) {
-						$dst_cat_id = $default_cat_id;
-					} else {
-						$dst_cat_id = $cat_id;
-					}
+					$dst_cat_id = $cat_id ?: $default_cat_id;
 
 					match ($cat_title) {
 						'tt-rss-prefs' => $this->opml_import_preference($node, $owner_uid, $nest+1),

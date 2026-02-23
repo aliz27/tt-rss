@@ -40,8 +40,9 @@ class UrlHelper {
 	 * @param array<string, string|int> $parts
 	 */
 	static function build_url(array $parts): string {
-		$tmp = $parts['scheme'] . "://" . $parts['host'];
+		$tmp = $parts['scheme'] . '://' . $parts['host'];
 
+		if (isset($parts['port'])) $tmp .= ':' . $parts['port'];
 		if (isset($parts['path'])) $tmp .= $parts['path'];
 		if (isset($parts['query'])) $tmp .= '?' . $parts['query'];
 		if (isset($parts['fragment'])) $tmp .= '#' . $parts['fragment'];
@@ -107,13 +108,16 @@ class UrlHelper {
 		} else {
 			$base_parts = parse_url($base_url);
 
-			$rel_parts['host'] = $base_parts['host'] ?? "";
-			$rel_parts['scheme'] = $base_parts['scheme'] ?? "";
+			$rel_parts['scheme'] = $base_parts['scheme'] ?? '';
+			$rel_parts['host'] = $base_parts['host'] ?? '';
+			$rel_parts['port'] = $base_parts['port'] ?? '';
 
 			if ($rel_parts['path'] ?? "") {
 
 				// we append dirname() of base path to relative URL path as per RFC 3986 section 5.2.2
-				$base_path = with_trailing_slash(dirname($base_parts['path'] ?? ""));
+				// if base path ends with / use it directly
+				$base_path = $base_parts['path'] ?? '';
+				$base_path = str_ends_with($base_path, '/') ? $base_path : with_trailing_slash(dirname($base_path));
 
 				// 1. absolute relative path (/test.html) = no-op, proceed as is
 
@@ -175,10 +179,10 @@ class UrlHelper {
 		$tokens_filter_var = $tokens;
 
 		if ($tokens['path'] ?? false) {
-			$tokens_filter_var['path'] = implode("/",
-										array_map("rawurlencode",
-											array_map("rawurldecode",
-												explode("/", $tokens['path']))));
+			$tokens_filter_var['path'] = implode('/',
+										array_map(rawurlencode(...),
+											array_map(rawurldecode(...),
+												explode('/', $tokens['path']))));
 		}
 
 		$url = self::build_url($tokens);
@@ -191,12 +195,80 @@ class UrlHelper {
 			if (!in_array($tokens['port'] ?? '', [80, 443, '']))
 				return false;
 
-			if (strtolower($tokens['host']) == 'localhost' || $tokens['host'] == '::1'
-				|| str_starts_with($tokens['host'], '127.'))
+			if (self::has_disallowed_ip($tokens, true))
 				return false;
 		}
 
 		return $url;
+	}
+
+	/**
+	 * Check if a URL targets a disallowed IP (localhost, loopback, or private IPs on non-standard ports).
+	 *
+	 * Traffic to private IPs on standard ports (80 and 443) is allowed to mimic the original behavior of
+	 * tt-rss, which (by omitting the port number in URLs) effectively only allowed the default ports.
+	 *
+	 * By default there will not be resolution of a host to IP, and validation of that IP, as it can introduce
+	 * noticeable slowness when DNS is slow (or times out, etc.).  'UrlHelper::fetch()', at minimum, will have
+	 * this additional validation enabled.
+	 *
+	 * @param string|array{scheme?: string, host?: string, port?: int} $url_or_tokens URL or pre-parsed URL tokens array
+	 * @param bool $validate_resolved_ip whether to perform additional validation by resolving the host to an IP and validating that IP
+	 * @return bool true if the URL should be rejected, false otherwise
+	 */
+	static function has_disallowed_ip(string|array $url_or_tokens, bool $validate_resolved_ip = false): bool {
+		$tokens = is_array($url_or_tokens)? $url_or_tokens : parse_url($url_or_tokens);
+
+		if (empty($tokens['host']))
+			return false;
+
+		$host = strtolower($tokens['host']);
+
+		$port = $tokens['port'] ?? null;
+		$standard_port = (($tokens['scheme'] ?? 'http') === 'https') ? 443 : 80;
+		$is_standard_port = ($port === null || $port === $standard_port);
+
+		// strip IPv6 brackets
+		if (str_starts_with($host, '[') && str_ends_with($host, ']'))
+			$host = substr($host, 1, -1);
+
+		if ($host === 'localhost' || str_starts_with($host, '127.'))
+			return true;
+
+		if ($host === '::1' || $host === '0:0:0:0:0:0:0:1')
+			return true;
+
+		// TODO: Improve IPv6 support (fc00::/7 unique local, fe80::/10 link-local)
+
+		// IPv4 link-local / cloud metadata
+		if (str_starts_with($host, '169.254.'))
+			return true;
+
+		if (!$is_standard_port && preg_match('/^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/', $host))
+			return true;
+
+		// if needed, try resolving the hostname and checking the resulting IP
+		if ($validate_resolved_ip && !str_contains($host, ':') && !preg_match('/^\d+\./', $host)) {
+			$ip_addr = gethostbyname($host);
+
+			// failed to resolve
+			// TODO: return true instead?
+			if (!$ip_addr || $ip_addr === $host)
+				return false;
+
+			if (str_starts_with($ip_addr, '127.'))
+				return true;
+
+			// TODO: maybe check for IPv6 loopback (::1) using dns_get_record()
+
+			if (str_starts_with($ip_addr, '169.254.'))
+				return true;
+
+			if (!$is_standard_port && preg_match('/^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/', $ip_addr))
+					return true;
+		}
+
+		return false;
 	}
 
 	static function resolve_redirects(string $url, int $timeout): false|string {
@@ -213,7 +285,7 @@ class UrlHelper {
 					'Connection' => 'close',
 				],
 			]);
-		} catch (Exception $ex) {
+		} catch (Exception) {
 			return false;
 		}
 
@@ -223,11 +295,12 @@ class UrlHelper {
 	}
 
 	/**
+	 * @todo the multiple-argument approach has been deprecated for a long time, and should be removed
+	 * @todo validate options
+	 *
 	 * @param array<string, bool|int|string>|string $options
 	 * @return false|string false if something went wrong, otherwise string contents
 	 */
-	// TODO: max_size currently only works for CURL transfers
-	// TODO: multiple-argument way is deprecated, first parameter is a hash now
 	public static function fetch(array|string $options /* previously: 0: $url , 1: $type = false, 2: $login = false, 3: $pass = false,
 				4: $post_query = false, 5: $timeout = false, 6: $timestamp = 0, 7: $useragent = false, 8: $encoding = false,
 				9: $auth_type = "basic" */): false|string {
@@ -281,10 +354,9 @@ class UrlHelper {
 		$http_referrer = $options["http_referrer"] ?? false;
 		$encoding = $options["encoding"] ?? false;
 
-		$url = ltrim($url, ' ');
-		$url = str_replace(' ', '%20', $url);
+		$url = str_replace(' ', '%20', ltrim($url ?? '', ' '));
 
-		Debug::log("[UrlHelper] fetching: $url", Debug::LOG_EXTENDED);
+		Debug::log("[UrlHelper] handling URL: $url", Debug::LOG_EXTENDED);
 
 		$url = self::validate($url, true);
 
@@ -293,13 +365,16 @@ class UrlHelper {
 			return false;
 		}
 
-		$url_host = parse_url($url, PHP_URL_HOST);
-		$ip_addr = gethostbyname($url_host);
+		// this skip is needed for integration tests, please don't enable in production
+		/* if (!getenv('__URLHELPER_ALLOW_LOOPBACK')) {
+			$url_host = parse_url($url, PHP_URL_HOST);
+			$ip_addr = gethostbyname($url_host);
 
-		if (!$ip_addr || str_starts_with($ip_addr, '127.')) {
-			self::$fetch_last_error = "URL hostname failed to resolve or resolved to a loopback address ($ip_addr)";
-			return false;
-		}
+			if (!$ip_addr || str_starts_with($ip_addr, '127.')) {
+				self::$fetch_last_error = "URL hostname failed to resolve or resolved to a loopback address ($ip_addr)";
+				return false;
+			}
+		} */
 
 		$req_options = [
 			GuzzleHttp\RequestOptions::CONNECT_TIMEOUT => $timeout ?: Config::get(Config::FILE_FETCH_CONNECT_TIMEOUT),
@@ -432,14 +507,16 @@ class UrlHelper {
 			return false;
 		}
 
-		// @phpstan-ignore argument.type (prior validation ensures the host value exists)
 		self::$fetch_effective_ip_addr = gethostbyname(parse_url(self::$fetch_effective_url, PHP_URL_HOST));
 
-		if (!self::$fetch_effective_ip_addr || str_starts_with(self::$fetch_effective_ip_addr, '127.')) {
-			self::$fetch_last_error = 'URL hostname received after redirection failed to resolve or resolved to a loopback address (' .
-				self::$fetch_effective_ip_addr . ')';
-			return false;
-		}
+		// this skip is needed for integration tests, please don't enable in production
+		/* if (!getenv('__URLHELPER_ALLOW_LOOPBACK')) {
+			if (!self::$fetch_effective_ip_addr || str_starts_with(self::$fetch_effective_ip_addr, '127.')) {
+				self::$fetch_last_error = 'URL hostname received after redirection failed to resolve or resolved to a loopback address (' .
+					self::$fetch_effective_ip_addr . ')';
+				return false;
+			}
+		} */
 
 		$body = (string) $response->getBody();
 

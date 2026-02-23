@@ -1,13 +1,10 @@
 #!/usr/bin/env php
 <?php
-	set_include_path(__DIR__ ."/include" . PATH_SEPARATOR .
-		get_include_path());
-
 	define('DISABLE_SESSIONS', true);
 
 	chdir(__DIR__);
 
-	require_once "autoload.php";
+	require_once __DIR__ . '/include/autoload.php';
 
 
 	if (php_sapi_name() != "cli") {
@@ -137,7 +134,7 @@
 	}
 
 	if (!isset($options['daemon'])) {
-		require_once "errorhandler.php";
+		require_once __DIR__ . '/include/errorhandler.php';
 	}
 
 	if (!isset($options['update-schema']) && Config::is_migration_needed()) {
@@ -161,11 +158,7 @@
         }
     }
 
-	if (!isset($options["daemon"])) {
-		$lock_filename = "update.lock";
-	} else {
-		$lock_filename = "update_daemon.lock";
-	}
+	$lock_filename = isset($options['daemon']) ? 'update_daemon.lock' : 'update.lock';
 
 	if (isset($options["task"])) {
 		Debug::log("Using task id " . $options["task"]);
@@ -217,7 +210,7 @@
 			$log = isset($options['log']) ? '--log '.$options['log'] : '';
 			$log_level = isset($options['log-level']) ? '--log-level '.$options['log-level'] : '';
 
-			passthru(Config::get(Config::PHP_EXECUTABLE) . " " . $argv[0] ." --daemon-loop $quiet $log $log_level");
+			passthru(Config::get(Config::PHP_EXECUTABLE) . ' ' . $_SERVER['SCRIPT_FILENAME'] . " --daemon-loop $quiet $log $log_level");
 
 			// let's enforce a minimum spawn interval as to not forkbomb the host
 			$spawn_interval = max(60, Config::get(Config::DAEMON_SLEEP_INTERVAL));
@@ -333,7 +326,7 @@
 	if (isset($options["plugins-list"])) {
 		$tmppluginhost = new PluginHost();
 		$tmppluginhost->load_all($tmppluginhost::KIND_ALL);
-		$enabled = array_map("trim", explode(",", Config::get(Config::PLUGINS)));
+		$enabled = array_map(trim(...), explode(',', Config::get(Config::PLUGINS)));
 
 		echo "List of all available plugins:\n";
 
@@ -380,7 +373,7 @@
 	}
 
 	if (isset($options["opml-export"])) {
-		list ($user, $filename) = explode(":", $options["opml-export"], 2);
+		[$user, $filename] = explode(":", $options["opml-export"], 2);
 
 		Debug::log("Exporting feeds of user $user to $filename as OPML...");
 
@@ -398,7 +391,7 @@
 	}
 
 	if (isset($options["opml-import"])) {
-		list ($user, $filename) = explode(":", $options["opml-import"], 2);
+		[$user, $filename] = explode(":", $options["opml-import"], 2);
 
 		Debug::log("Importing feeds of user $user from OPML file $filename...");
 
@@ -417,7 +410,7 @@
 	}
 
 	if (isset($options["user-add"])) {
-		list ($login, $password, $access_level) = explode(":", $options["user-add"], 3);
+		[$login, $password, $access_level] = explode(":", $options["user-add"], 3);
 
 		$uid = UserHelper::find_user_by_login($login);
 
@@ -455,7 +448,7 @@
 	}
 
 	if (isset($options["user-set-password"])) {
-		list ($login, $password) = explode(":", $options["user-set-password"], 2);
+		[$login, $password] = explode(":", $options["user-set-password"], 2);
 
 		$uid = UserHelper::find_user_by_login($login);
 
@@ -475,7 +468,7 @@
 	}
 
 	if (isset($options["user-set-access-level"])) {
-		list ($login, $access_level) = explode(":", $options["user-set-access-level"], 2);
+		[$login, $access_level] = explode(":", $options["user-set-access-level"], 2);
 
 		$uid = UserHelper::find_user_by_login($login);
 
@@ -500,7 +493,7 @@
 	}
 
 	if (isset($options["user-enable-api"])) {
-		list ($login, $enable) = explode(":", $options["user-enable-api"], 2);
+		[$login, $enable] = explode(":", $options["user-enable-api"], 2);
 
 		$uid = UserHelper::find_user_by_login($login);
 		$enable = Handler::_param_to_bool($enable);
@@ -563,7 +556,7 @@
 	}
 
 	if (isset($options["user-check-password"])) {
-		list ($login, $password) = explode(":", $options["user-check-password"], 2);
+		[$login, $password] = explode(":", $options["user-check-password"], 2);
 
 		$uid = UserHelper::find_user_by_login($login);
 

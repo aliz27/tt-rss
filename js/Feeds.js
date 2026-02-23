@@ -1,6 +1,6 @@
 'use strict'
 
-/* global __, App, Headlines, xhr, dojo, dijit, fox, PluginHost, Notify, fox */
+/* global __, App, Headlines, xhr, fox, PluginHost, Notify, fox */
 
 const	Feeds = {
 	FEED_ARCHIVED: 0,
@@ -31,7 +31,7 @@ const	Feeds = {
 			entries.forEach((entry) => {
 				//console.log('feeds',entry.target, entry.intersectionRatio);
 
-				if (entry.intersectionRatio == 0)
+				if (entry.intersectionRatio === 0)
 					Feeds.onHide(entry);
 				else
 					Feeds.onShow(entry);
@@ -50,7 +50,7 @@ const	Feeds = {
 
 		// If number of properties is different,
 		// objects are not equivalent
-		if (aProps.length != bProps.length) {
+		if (aProps.length !== bProps.length) {
 			return false;
 		}
 
@@ -87,13 +87,13 @@ const	Feeds = {
 			const ts = elems[l].ts;
 			const updated = elems[l].updated;
 
-			if (id == "global-unread") {
+			if (id === "global-unread") {
 				App.global_unread = ctr;
 				App.updateTitle();
 				continue;
 			}
 
-			if (id == "subscribed-feeds") {
+			if (id === "subscribed-feeds") {
 				/* feeds_found = ctr; */
 				continue;
 			}
@@ -102,12 +102,14 @@ const	Feeds = {
 					(kind == "cat")) {
 			}*/
 
-			this.setUnread(id, (kind == "cat"), ctr);
-			this.setValue(id, (kind == "cat"), 'auxcounter', parseInt(elems[l].auxcounter));
-			this.setValue(id, (kind == "cat"), 'markedcounter', parseInt(elems[l].markedcounter));
-			this.setValue(id, (kind == "cat"), 'publishedcounter', parseInt(elems[l].publishedcounter));
+			const is_cat = (kind === 'cat');
 
-			if (kind != "cat") {
+			this.setUnread(id, is_cat, ctr);
+			this.setValue(id, is_cat, 'auxcounter', parseInt(elems[l].auxcounter));
+			this.setValue(id, is_cat, 'markedcounter', parseInt(elems[l].markedcounter));
+			this.setValue(id, is_cat, 'publishedcounter', parseInt(elems[l].publishedcounter));
+
+			if (!is_cat) {
 				this.setValue(id, false, 'error', error);
 				this.setValue(id, false, 'updated', updated);
 
@@ -130,9 +132,7 @@ const	Feeds = {
 		PluginHost.run(PluginHost.HOOK_COUNTERS_PROCESSED, elems);
 	},
 	reloadCurrent: function(method) {
-		if (this.getActive() != undefined) {
-			console.log("reloadCurrent", this.getActive(), this.activeIsCat(), method);
-
+		if (this.getActive() !== undefined) {
 			this.open({feed: this.getActive(), is_cat: this.activeIsCat(), method: method});
 		}
 	},
@@ -141,8 +141,8 @@ const	Feeds = {
 	},
    onViewModeChanged: function() {
 		// TODO: is this still needed?
-      App.find("body").setAttribute("view-mode",
-			dijit.byId("toolbar-main").getValues().view_mode);
+      document.body.setAttribute('view-mode',
+			dijit.byId('toolbar-main').getValues().view_mode);
 
       return Feeds.reloadCurrent('');
    },
@@ -220,12 +220,11 @@ const	Feeds = {
 				id: "feedTree",
 			}, "feedTree");
 
-			const tmph = dojo.connect(dijit.byId('feedMenu'), '_openMyself', function (event) {
-				console.log(dijit.getEnclosingWidget(event.target));
+			const tmph = dojo.connect(dijit.byId('feedMenu'), '_openMyself', function (/*event*/) {
 				dojo.disconnect(tmph);
 			});
 
-			App.byId("feeds-holder").appendChild(tree.domNode);
+			document.getElementById("feeds-holder").appendChild(tree.domNode);
 
 			const tmph2 = dojo.connect(tree, 'onLoad', function () {
 				dojo.disconnect(tmph2);
@@ -245,21 +244,19 @@ const	Feeds = {
 		}
 	},
 	onHide: function() {
-		App.byId("feeds-holder_splitter").hide();
+		document.getElementById("feeds-holder_splitter").hide();
 
 		dijit.byId("main").resize();
 		Headlines.updateCurrentUnread();
 	},
 	onShow: function() {
-		App.byId("feeds-holder_splitter").show();
+		document.getElementById("feeds-holder_splitter").show();
 
 		dijit.byId("main").resize();
 		Headlines.updateCurrentUnread();
 	},
 	init: function() {
-		console.log("in feedlist init");
-
-		this._feeds_holder_observer.observe(App.byId("feeds-holder"));
+		this._feeds_holder_observer.observe(document.getElementById("feeds-holder"));
 
 		App.setLoadingProgress(50);
 
@@ -269,12 +266,10 @@ const	Feeds = {
 
 		const hash = App.Hash.get();
 
-		console.log('got hash', hash);
-
 		if (hash.query)
 			this._search_query = {query: hash.query, search_language: hash.search_language};
 
-		if (hash.f != undefined) {
+		if (hash.f !== undefined) {
 			this.open({feed: parseInt(hash.f), is_cat: parseInt(hash.c)});
 		} else {
 			this.openDefaultFeed();
@@ -330,7 +325,9 @@ const	Feeds = {
 		return this._active_feed_id;
 	},
 	setActive: function(id, is_cat) {
-		console.log('setActive', id, is_cat);
+		// id might be a tag string, so check if we have something int-ish
+		if (Number.isInteger(Number(id)))
+			id = parseInt(id);
 
 		window.requestIdleCallback(() => {
 			App.Hash.set({
@@ -344,7 +341,7 @@ const	Feeds = {
 		this._active_feed_id = id;
 		this._active_feed_is_cat = is_cat;
 
-		const container = App.byId("headlines-frame");
+		const container = document.getElementById("headlines-frame");
 
 		// TODO @deprecated: these two should be removed (replaced with data- attributes below)
 		container.setAttribute("feed-id", id);
@@ -377,8 +374,8 @@ const	Feeds = {
 		if (tree)
 			return tree.hideRead(hide, App.getInitParam("hide_read_shows_special"));*/
 
-		App.findAll("body")[0].setAttribute("hide-read-feeds", !!hide);
-		App.findAll("body")[0].setAttribute("hide-read-shows-special", !!App.getInitParam("hide_read_shows_special"));
+		document.body.setAttribute('hide-read-feeds', !!hide);
+		document.body.setAttribute('hide-read-shows-special', !!App.getInitParam('hide_read_shows_special'));
 	},
 	open: function(params) {
 		const feed = params.feed;
@@ -389,7 +386,7 @@ const	Feeds = {
 		// this is used to quickly switch between feeds, sets active but xhr is on a timeout
 		const delayed = params.delayed || false;
 
-		if (offset != 0) {
+		if (offset !== 0) {
 			if (this.infscroll_in_progress)
 				return;
 
@@ -397,7 +394,7 @@ const	Feeds = {
 
 			window.clearTimeout(this._infscroll_timeout);
 			this._infscroll_timeout = window.setTimeout(() => {
-				console.log('infscroll request timed out, aborting');
+				console.warn('infscroll request timed out, aborting');
 				this.infscroll_in_progress = 0;
 
 				// call scroll handler to maybe repeat infscroll request
@@ -419,9 +416,9 @@ const	Feeds = {
 			query = Object.assign(query, this._search_query);
 		}
 
-		if (offset != 0) {
+		if (offset !== 0) {
 			query.skip = offset;
-		} else if (!is_cat && feed == this.getActive() && !params.method) {
+		} else if (!is_cat && feed === this.getActive() && !params.method) {
 			query.m = "ForceUpdate";
 		}
 
@@ -450,7 +447,7 @@ const	Feeds = {
 	catchupAll: function() {
 		const str = __("Mark all articles as read?");
 
-		if (App.getInitParam("confirm_feed_catchup") != 1 || confirm(str)) {
+		if (App.getInitParam("confirm_feed_catchup") !== 1 || confirm(str)) {
 
 			Notify.progress("Marking all feeds as read...");
 
@@ -509,7 +506,7 @@ const	Feeds = {
 				if (next_feed !== false) {
 					this.open({feed: next_feed, is_cat: next_is_cat});
 				}
-			} else if (feed == this.getActive() && is_cat == this.activeIsCat()) {
+			} else if (feed === this.getActive() && is_cat === this.activeIsCat()) {
 				this.reloadCurrent();
 			}
 
@@ -524,13 +521,9 @@ const	Feeds = {
 
 		const str = __("Mark all articles in %s as read?").replace("%s", title);
 
-		if (App.getInitParam("confirm_feed_catchup") != 1 || confirm(str)) {
-
-			const rows = App.findAll("#headlines-frame > div[id*=RROW][class*=Unread][data-orig-feed-id='" + id + "']");
-
-			rows.forEach((row) => {
-				row.removeClassName("Unread");
-			})
+		if (App.getInitParam("confirm_feed_catchup") !== 1 || confirm(str)) {
+			document.querySelectorAll("#headlines-frame > div[id*=RROW][class*=Unread][data-orig-feed-id='" + id + "']")
+				.forEach(row => row.classList.remove('Unread'));
 		}
 	},
 	getUnread: function(feed, is_cat) {
@@ -540,7 +533,7 @@ const	Feeds = {
 			if (tree && tree.model)
 				return tree.model.getFeedUnread(feed, is_cat);
 
-		} catch (e) {
+		} catch {
 			//
 		}
 
@@ -553,7 +546,7 @@ const	Feeds = {
 			if (tree && tree.model)
 				return tree.getFeedCategory(feed);
 
-		} catch (e) {
+		} catch {
 			//
 		}
 
@@ -580,7 +573,7 @@ const	Feeds = {
 			if (tree && tree.model)
 				return tree.model.setFeedValue(feed, is_cat, key, value);
 
-		} catch (e) {
+		} catch {
 			//
 		}
 	},
@@ -591,7 +584,7 @@ const	Feeds = {
 			if (tree && tree.model)
 				return tree.model.getFeedValue(feed, is_cat, key);
 
-		} catch (e) {
+		} catch {
 			//
 		}
 		return '';
@@ -658,7 +651,7 @@ const	Feeds = {
 										<footer>
 											${reply.show_syntax_help ?
 												`${App.FormFields.button_tag(App.FormFields.icon("help") + " " + __("Search syntax"), "",
-													{class: 'alt-info pull-left', onclick: "window.open('https://tt-rss.org/wiki/SearchSyntax')"})}
+													{class: 'alt-info pull-left', onclick: "window.open('https://tt-rss.org/docs/Search.html', '_blank', 'noreferrer')"})}
 													` : ''}
 
 											${App.FormFields.submit_tag(App.FormFields.icon("search") + " " + __('Search'), {onclick: "App.dialogOf(this).execute()"})}
@@ -745,10 +738,16 @@ const	Feeds = {
 
 	},
 	renderIcon: function(feed_id, exists) {
-		const icon_url = App.getInitParam("icons_url") + '?' + dojo.objectToQuery({op: 'feed_icon', id: feed_id});
+		const icon_url = App.getInitParam('icons_url') + '?' + dojo.objectToQuery({op: 'feed_icon', id: feed_id});
 
 		return feed_id && exists ?
-			`<img class="icon" src="${App.escapeHtml(icon_url)}">` :
+			`<img class='icon' src='${App.escapeHtml(icon_url)}' width='16' height='16' alt='feed icon' onerror='Feeds._handleIconError(this)'>` :
 				`<i class='icon-no-feed material-icons'>rss_feed</i>`;
+	},
+	_handleIconError: (img) => {
+		const icon = document.createElement('i');
+		icon.className = 'icon-no-feed material-icons';
+		icon.textContent = 'rss_feed';
+		img.replaceWith(icon);
 	}
 };

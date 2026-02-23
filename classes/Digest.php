@@ -99,7 +99,7 @@ class Digest
 		$tpl_t->setVariable('CUR_TIME', date('G:i', $local_ts));
 		$tpl_t->setVariable('TTRSS_HOST', Config::get_self_url());
 
-		$affected_ids = array();
+		$affected_ids = [];
 		$pdo = Db::pdo();
 
 		$sth = $pdo->prepare("SELECT ttrss_entries.title,
@@ -127,18 +127,18 @@ class Digest
 		$sth->execute([':user_id' => $user_id, ':min_score' => $min_score]);
 
 		$headlines_count = 0;
-		$headlines = array();
+		$headlines = [];
 
 		while ($line = $sth->fetch()) {
-			array_push($headlines, $line);
+			$headlines[] = $line;
 			$headlines_count++;
 		}
 
-		for ($i = 0; $i < sizeof($headlines); $i++) {
+		for ($i = 0; $i < count($headlines); $i++) {
 
 			$line = $headlines[$i];
 
-			array_push($affected_ids, $line["ref_id"]);
+			$affected_ids[] = $line['ref_id'];
 
 			$updated = TimeHelper::make_local_datetime($line['last_updated'], owner_uid: $user_id);
 
@@ -188,6 +188,6 @@ class Digest
 		$tpl_t->addBlock('digest');
 		$tpl_t->generateOutputToString($tmp_t);
 
-		return array($tmp, $headlines_count, $affected_ids, $tmp_t);
+		return [$tmp, $headlines_count, $affected_ids, $tmp_t];
 	}
 }

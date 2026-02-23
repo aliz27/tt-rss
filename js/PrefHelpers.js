@@ -1,7 +1,6 @@
 'use strict';
 
-/* eslint-disable no-new */
-/* global __, dijit, dojo, Tables, Notify, xhr, App, fox */
+/* global __, Tables, Notify, xhr, App, fox */
 
 const	Helpers = {
 	AppPasswords: {
@@ -9,13 +8,13 @@ const	Helpers = {
 			return Tables.getSelected("app-password-list");
 		},
 		updateContent: function(data) {
-			App.byId("app_passwords_holder").innerHTML = data;
+			document.getElementById("app_passwords_holder").innerHTML = data;
 			dojo.parser.parse("app_passwords_holder");
 		},
 		removeSelected: function() {
 			const rows = this.getSelected();
 
-			if (rows.length == 0) {
+			if (rows.length === 0) {
 				alert("No passwords selected.");
 			} else if (confirm(__("Remove selected app passwords?"))) {
 
@@ -131,7 +130,7 @@ const	Helpers = {
 				cloneSelected: function() {
 					const sel_rows = this.getSelectedProfiles();
 
-					if (sel_rows.length == 1) {
+					if (sel_rows.length === 1) {
 						const new_title = prompt(__("Name for cloned profile:"));
 
 						if (new_title) {
@@ -238,7 +237,7 @@ const	Helpers = {
 				execute: function () {
 					const sel_rows = this.getSelectedProfiles();
 
-					if (sel_rows.length == 1) {
+					if (sel_rows.length === 1) {
 						if (confirm(__("Activate selected profile?"))) {
 							Notify.progress("Loading, please wait...");
 
@@ -265,7 +264,7 @@ const	Helpers = {
 				apply: function() {
 					xhr.post("backend.php", this.attr('value'), () => {
 						Element.show("css_edit_apply_msg");
-						App.byId("user_css_style").innerText = this.attr('value');
+						document.getElementById("user_css_style").innerText = this.attr('value');
 					});
 				},
 				execute: function () {
@@ -386,11 +385,11 @@ const	Helpers = {
 
 			this._list_of_plugins.plugins.forEach((plugin) => {
 
-				if (search_tokens.length == 0 ||
+				if (search_tokens.length === 0 ||
 					Object.values(plugin).filter((pval) =>
 						search_tokens.filter((stoken) =>
-							(pval.toString().indexOf(stoken) != -1 ? stoken : null)
-						).length == search_tokens.length).length > 0) {
+							(pval.toString().indexOf(stoken) !== -1 ? stoken : null)
+						).length === search_tokens.length).length > 0) {
 
 						++results_rendered;
 
@@ -412,17 +411,17 @@ const	Helpers = {
 											{disabled: true}) : ''}
 									${plugin.more_info ?
 											App.FormFields.button_tag(App.FormFields.icon("help"), "",
-												{class: 'alt-info', onclick: `window.open("${App.escapeHtml(plugin.more_info)}")`}) : ''}
+												{class: 'alt-info', onclick: `App.openUrl(${JSON.stringify(plugin.more_info)})`}) : ''}
 									${is_admin && plugin.is_local ?
 										App.FormFields.button_tag(App.FormFields.icon("update"), "",
 											{title: __("Update"), class: 'alt-warning', "data-update-btn-for-plugin": plugin.name, style: 'display : none',
-												onclick: `Helpers.Plugins.update("${App.escapeHtml(plugin.name)}")`}) : ''}
+												onclick: `Helpers.Plugins.update(${JSON.stringify(plugin.name)})`}) : ''}
 									${is_admin && plugin.has_data ?
 										App.FormFields.button_tag(App.FormFields.icon("clear"), "",
-											{title: __("Clear data"), onclick: `Helpers.Plugins.clearData("${App.escapeHtml(plugin.name)}")`}) : ''}
+											{title: __("Clear data"), onclick: `Helpers.Plugins.clearData(${JSON.stringify(plugin.name)})`}) : ''}
 									${is_admin && plugin.is_local ?
 										App.FormFields.button_tag(App.FormFields.icon("delete"), "",
-											{title: __("Uninstall"), onclick: `Helpers.Plugins.uninstall("${App.escapeHtml(plugin.name)}")`}) : ''}
+											{title: __("Uninstall"), onclick: `Helpers.Plugins.uninstall(${JSON.stringify(plugin.name)})`}) : ''}
 								</div>
 								<div class='version text-muted'>${plugin.version}</div>
 							</li>
@@ -433,7 +432,7 @@ const	Helpers = {
 					}
 			});
 
-			if (results_rendered == 0) {
+			if (results_rendered === 0) {
 				container.innerHTML += `<li class='text-center text-info'>${__("Could not find any plugins for this search query.")}</li>`;
 			}
 
@@ -456,7 +455,7 @@ const	Helpers = {
 				Notify.progress("Loading, please wait...");
 
 				xhr.json("backend.php", {op: "Pref_Prefs", method: "uninstallPlugin", plugin: plugin}, (reply) => {
-					if (reply && reply.status == 1)
+					if (reply?.status === true)
 						Helpers.Plugins.reload();
 					else {
 						Notify.error("Plugin uninstallation failed.");
@@ -562,11 +561,11 @@ const	Helpers = {
 							const is_installed = (dialog.installed_plugins
 								.filter((p) => plugin.topics.map((t) => t.replace(/-/g, "_")).includes(p))).length > 0;
 
-							if (search_tokens.length == 0 ||
+							if (search_tokens.length === 0 ||
 									Object.values(plugin).filter((pval) =>
 										search_tokens.filter((stoken) =>
-											(pval.indexOf(stoken) != -1 ? stoken : null)
-										).length == search_tokens.length).length > 0) {
+											(pval.indexOf(stoken) !== -1 ? stoken : null)
+										).length === search_tokens.length).length > 0) {
 
 								++results_rendered;
 
@@ -576,10 +575,10 @@ const	Helpers = {
 												App.FormFields.icon("check") + " " +__("Already installed") :
 												App.FormFields.icon("file_download") + " " +__('Install')), "", {class: 'alt-primary pull-right',
 											disabled: is_installed,
-											onclick: `App.dialogOf(this).performInstall("${App.escapeHtml(plugin.name)}")`})}
+											onclick: `App.dialogOf(this).performInstall(${JSON.stringify(plugin.name)})`})}
 
 										<h3>${plugin.name}
-											<a target="_blank" href="${App.escapeHtml(plugin.html_url)}">
+											<a target="_blank" rel="noopener noreferrer" href="${App.escapeHtml(App.sanitizeUrl(plugin.html_url))}">
 												${App.FormFields.icon("open_in_new_window")}
 											</a>
 										</h3>
@@ -592,7 +591,7 @@ const	Helpers = {
 							}
 						});
 
-						if (results_rendered == 0) {
+						if (results_rendered === 0) {
 							container.innerHTML = `<li class='text-center text-info'>${__("Could not find any plugins for this search query.")}</li>`;
 						}
 
@@ -650,7 +649,6 @@ const	Helpers = {
 				performUpdate: function() {
 					const container = dialog.domNode.querySelector(".update-results");
 
-					console.log('updating', dialog.plugins_to_update);
 					dialog.attr('title', __('Updating...'));
 
 					container.innerHTML = `<li class='text-center'>${__("Updating, please wait...")}</li>`;
@@ -664,7 +662,7 @@ const	Helpers = {
 							container.innerHTML = "";
 
 							reply.forEach((p) => {
-								if (p.rv.git_status == 0)
+								if (p.rv.git_status === 0)
 									dialog.need_refresh = true;
 								else
 									enable_update_btn = true;
@@ -704,13 +702,11 @@ const	Helpers = {
 							dialog.attr('title', __("No updates available"));
 
 						dijit.getEnclosingWidget(dialog.domNode.querySelector(".update-btn"))
-									.attr('disabled', num_updated == 0);
+									.attr('disabled', num_updated === 0);
 
 					}
 				},
 				checkUpdates: function(name) {
-					console.log('checkUpdates', name);
-
 					const container = dialog.domNode.querySelector(".update-results");
 
 					dialog.attr('title', __("Checking: %s").replace("%s", name));
@@ -729,13 +725,13 @@ const	Helpers = {
 										dialog.plugins_to_update.push(p.plugin);
 
 										const update_button = dijit.getEnclosingWidget(
-											App.find(`*[data-update-btn-for-plugin="${p.plugin}"]`));
+											document.querySelector(`*[data-update-btn-for-plugin="${p.plugin}"]`));
 
 										if (update_button)
 											update_button.domNode.show();
 									}
 
-									if (p.rv.need_update || p.rv.git_status != 0) {
+									if (p.rv.need_update || p.rv.git_status !== 0) {
 										container.innerHTML +=
 										`
 										<li><h3>${p.plugin}</h3>
@@ -785,9 +781,9 @@ const	Helpers = {
 	},
 	OPML: {
 		import: function() {
-			const opml_file = App.byId("opml_file");
+			const opml_file = document.getElementById("opml_file");
 
-			if (opml_file.value.length == 0) {
+			if (opml_file.value.length === 0) {
 				alert(__("Please choose an OPML file first."));
 				return false;
 			} else {
@@ -827,14 +823,16 @@ const	Helpers = {
 					dialog.show();
 				};
 
-				xhr.send(new FormData(App.byId("opml_import_form")));
+				xhr.send(new FormData(document.getElementById("opml_import_form")));
 
 				return false;
 			}
 		},
 		export: function() {
-			console.log("export");
 			window.open("backend.php?op=OPML&method=export&" + dojo.formToQuery("opmlExportForm"));
 		},
 	}
 };
+
+// Expose to global scope for Dojo widget onclick handlers (needed since Dojo 1.17.3)
+window.Helpers = Helpers;

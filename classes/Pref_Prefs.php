@@ -23,10 +23,10 @@ class Pref_Prefs extends Handler_Protected {
 	const PI_ERR_PLUGIN_NOT_FOUND = "PI_ERR_PLUGIN_NOT_FOUND";
 	const PI_ERR_NO_WORKDIR = "PI_ERR_NO_WORKDIR";
 
-	function csrf_ignore(string $method) : bool {
-		$csrf_ignored = array("index", "updateself", "otpqrcode");
+	private const PLUGIN_UPDATE_ALLOWED_BRANCHES = ['main', 'master'];
 
-		return array_search($method, $csrf_ignored) !== false;
+	function csrf_ignore(string $method) : bool {
+		return in_array($method, ['index', 'updateself', 'otpqrcode']);
 	}
 
 	function __construct($args) {
@@ -44,6 +44,7 @@ class Pref_Prefs extends Handler_Protected {
 			__('Feeds') => [
 				Prefs::DEFAULT_UPDATE_INTERVAL,
 				Prefs::FRESH_ARTICLE_MAX_AGE,
+				Prefs::RECENTLY_READ_MAX_AGE,
 				Prefs::DEFAULT_SEARCH_LANGUAGE,
 				self::BLOCK_SEPARATOR,
 				Prefs::ENABLE_FEED_CATS,
@@ -95,38 +96,39 @@ class Pref_Prefs extends Handler_Protected {
 		];
 
 		$this->pref_help = [
-			Prefs::BLACKLISTED_TAGS => array(__("Blacklisted tags"), ""),
-			Prefs::DEFAULT_SEARCH_LANGUAGE => array(__("Default language"), __("Used for full-text search")),
-			Prefs::CDM_AUTO_CATCHUP => array(__("Mark read on scroll"), __("Mark articles as read as you scroll past them")),
-			Prefs::CDM_EXPANDED => array(__("Always expand articles")),
-			Prefs::COMBINED_DISPLAY_MODE => array(__("Combined mode"), __("Show flat list of articles instead of separate panels")),
-			Prefs::CONFIRM_FEED_CATCHUP => array(__("Confirm marking feeds as read")),
-			Prefs::DEFAULT_UPDATE_INTERVAL => array(__("Default update interval")),
-			Prefs::DIGEST_CATCHUP => array(__("Mark sent articles as read")),
-			Prefs::DIGEST_ENABLE => array(__("Enable digest"), __("Send daily digest of new (and unread) headlines to your e-mail address")),
-			Prefs::DIGEST_PREFERRED_TIME => array(__("Try to send around this time"), __("Time in UTC")),
-			Prefs::ENABLE_API_ACCESS => array(__("Enable API"), __("Allows accessing this account through the API")),
-			Prefs::ENABLE_FEED_CATS => array(__("Enable categories")),
-			Prefs::FRESH_ARTICLE_MAX_AGE => array(__("Maximum age of fresh articles"), "<strong>" . __("hours") . "</strong>"),
-			Prefs::HIDE_READ_FEEDS => array(__("Hide read feeds")),
-			Prefs::HIDE_READ_SHOWS_SPECIAL => array(__("Always show special feeds"), __("While hiding read feeds")),
-			Prefs::LONG_DATE_FORMAT => array(__("Long date format"), __("Syntax is identical to PHP <a href='http://php.net/manual/function.date.php'>date()</a> function.")),
-			Prefs::ON_CATCHUP_SHOW_NEXT_FEED => array(__("Automatically show next feed"), __("After marking one as read")),
-			Prefs::PURGE_OLD_DAYS => array(__("Purge articles older than"), __("<strong>days</strong> (0 disables)")),
-			Prefs::PURGE_UNREAD_ARTICLES => array(__("Purge unread articles")),
-			Prefs::SHORT_DATE_FORMAT => array(__("Short date format")),
-			Prefs::SHOW_CONTENT_PREVIEW => array(__("Show content preview in headlines")),
-			Prefs::SSL_CERT_SERIAL => array(__("SSL client certificate")),
-			Prefs::STRIP_IMAGES => array(__("Do not embed media")),
-			Prefs::USER_TIMEZONE => array(__("Time zone")),
-			Prefs::VFEED_GROUP_BY_FEED => array(__("Group by feed"), __("Group multiple-feed output by originating feed")),
-			Prefs::USER_LANGUAGE => array(__("Language")),
-			Prefs::USER_CSS_THEME => array(__("Theme")),
-			Prefs::HEADLINES_NO_DISTINCT => array(__("Don't enforce DISTINCT headlines"), __("May produce duplicate entries")),
-			Prefs::DEBUG_HEADLINE_IDS => array(__("Show article and feed IDs"), __("In the headlines buffer")),
-			Prefs::DISABLE_CONDITIONAL_COUNTERS => array(__("Disable conditional counter updates"), __("May increase server load")),
-			Prefs::CDM_ENABLE_GRID => array(__("Grid view"), __("On wider screens, if always expanded")),
-			Prefs::DIGEST_MIN_SCORE => array(__("Required score"), __("Include articles with this or above score")),
+			Prefs::BLACKLISTED_TAGS => [__("Blacklisted tags"), ""],
+			Prefs::DEFAULT_SEARCH_LANGUAGE => [__("Default language"), __("Used for full-text search")],
+			Prefs::CDM_AUTO_CATCHUP => [__("Mark read on scroll"), __("Mark articles as read as you scroll past them")],
+			Prefs::CDM_EXPANDED => [__("Always expand articles")],
+			Prefs::COMBINED_DISPLAY_MODE => [__("Combined mode"), __("Show flat list of articles instead of separate panels")],
+			Prefs::CONFIRM_FEED_CATCHUP => [__("Confirm marking feeds as read")],
+			Prefs::DEFAULT_UPDATE_INTERVAL => [__("Default update interval")],
+			Prefs::DIGEST_CATCHUP => [__("Mark sent articles as read")],
+			Prefs::DIGEST_ENABLE => [__("Enable digest"), __("Send daily digest of new (and unread) headlines to your email address")],
+			Prefs::DIGEST_PREFERRED_TIME => [__("Try to send around this time"), __("Time in UTC")],
+			Prefs::ENABLE_API_ACCESS => [__("Enable API"), __("Allows accessing this account through the API")],
+			Prefs::ENABLE_FEED_CATS => [__("Enable categories")],
+			Prefs::FRESH_ARTICLE_MAX_AGE => [__("Maximum age of fresh articles"), "<strong>" . __("hours") . "</strong>"],
+			Prefs::RECENTLY_READ_MAX_AGE => [__('Maximum age of recently read articles'), '<strong>' . __('hours') . '</strong>'],
+			Prefs::HIDE_READ_FEEDS => [__("Hide read feeds")],
+			Prefs::HIDE_READ_SHOWS_SPECIAL => [__("Always show special feeds"), __("While hiding read feeds")],
+			Prefs::LONG_DATE_FORMAT => [__("Long date format"), __("Syntax is identical to PHP <a href='https://www.php.net/manual/function.date.php'>date()</a> function.")],
+			Prefs::ON_CATCHUP_SHOW_NEXT_FEED => [__("Automatically show next feed"), __("After marking one as read")],
+			Prefs::PURGE_OLD_DAYS => [__("Purge articles older than"), __("<strong>days</strong> (0 disables)")],
+			Prefs::PURGE_UNREAD_ARTICLES => [__("Purge unread articles")],
+			Prefs::SHORT_DATE_FORMAT => [__("Short date format")],
+			Prefs::SHOW_CONTENT_PREVIEW => [__("Show content preview in headlines")],
+			Prefs::SSL_CERT_SERIAL => [__("SSL client certificate")],
+			Prefs::STRIP_IMAGES => [__("Do not embed media")],
+			Prefs::USER_TIMEZONE => [__("Time zone")],
+			Prefs::VFEED_GROUP_BY_FEED => [__("Group by feed"), __("Group multiple-feed output by originating feed")],
+			Prefs::USER_LANGUAGE => [__("Language")],
+			Prefs::USER_CSS_THEME => [__("Theme")],
+			Prefs::HEADLINES_NO_DISTINCT => [__("Don't enforce DISTINCT headlines"), __("May produce duplicate entries")],
+			Prefs::DEBUG_HEADLINE_IDS => [__("Show article and feed IDs"), __("In the headlines buffer")],
+			Prefs::DISABLE_CONDITIONAL_COUNTERS => [__("Disable conditional counter updates"), __("May increase server load")],
+			Prefs::CDM_ENABLE_GRID => [__("Grid view"), __("On wider screens, if always expanded")],
+			Prefs::DIGEST_MIN_SCORE => [__("Required score"), __("Include articles with this or above score")],
 		];
 
 		// hidden in the main prefs UI (use to hide things that have description set above)
@@ -223,11 +225,7 @@ class Pref_Prefs extends Handler_Protected {
 			}
 		}
 
-		if ($need_reload) {
-			print "PREFS_NEED_RELOAD";
-		} else {
-			print __("The configuration was saved.");
-		}
+		print ($need_reload ? 'PREFS_NEED_RELOAD' : __('The configuration was saved.'));
 	}
 
 	function changePersonalData(): void {
@@ -303,7 +301,7 @@ class Pref_Prefs extends Handler_Protected {
 			</fieldset>
 
 			<fieldset>
-				<label><?= __('E-mail:') ?></label>
+				<label><?= __('Email:') ?></label>
 				<input dojoType='dijit.form.ValidationTextBox' name='email' required='1' value="<?= htmlspecialchars($user->email) ?>">
 			</fieldset>
 
@@ -318,11 +316,7 @@ class Pref_Prefs extends Handler_Protected {
 	}
 
 	private function index_auth_password(): void {
-		if ($_SESSION["auth_module"]) {
-			$authenticator = PluginHost::getInstance()->get_plugin($_SESSION["auth_module"]);
-		} else {
-			$authenticator = false;
-		}
+		$authenticator = $_SESSION['auth_module'] ? PluginHost::getInstance()->get_plugin($_SESSION['auth_module']) : false;
 
 		if ($authenticator && implements_interface($authenticator, "IAuthModule2")) {
 			?>
@@ -343,14 +337,14 @@ class Pref_Prefs extends Handler_Protected {
 							Notify.close();
 							if (reply.indexOf('ERROR: ') == 0) {
 
-								App.byId('pwd_change_infobox').innerHTML =
+								document.getElementById('pwd_change_infobox').innerHTML =
 								reply.replace('ERROR: ', '');
 
 							} else {
-								App.byId('pwd_change_infobox').innerHTML =
+								document.getElementById('pwd_change_infobox').innerHTML =
 								reply.replace('ERROR: ', '');
 
-								const warn = App.byId('default_pass_warning');
+								const warn = document.getElementById('default_pass_warning');
 								if (warn) Element.hide(warn);
 							}
 
@@ -609,8 +603,8 @@ class Pref_Prefs extends Handler_Protected {
 							["style" => 'width : 220px; margin : 0px']);
 
 					} else if ($pref_name == Prefs::USER_TIMEZONE) {
-
-						$timezones = explode("\n", file_get_contents("lib/timezones.txt"));
+						$timezones = DateTimeZone::listIdentifiers(DateTimeZone::ALL_WITH_BC);
+						array_unshift($timezones, 'Automatic');
 
 						print \Controls\select_tag($pref_name, $value, $timezones, ["dojoType" => "dijit.form.FilteringSelect"]);
 
@@ -628,10 +622,10 @@ class Pref_Prefs extends Handler_Protected {
 
 					} else if ($pref_name == Prefs::USER_CSS_THEME) {
 
-						$theme_files = array_map("basename", [
-							...glob("themes/*.php") ?: [],
-							...glob("themes/*.css") ?: [],
-							...glob("themes.local/*.css") ?: [],
+						$theme_files = array_map(basename(...), [
+							...glob('themes/*.php') ?: [],
+							...glob('themes/*.css') ?: [],
+							...glob('themes.local/*.css') ?: [],
 						]);
 
 						asort($theme_files);
@@ -646,8 +640,10 @@ class Pref_Prefs extends Handler_Protected {
 						<?= \Controls\select_hash($pref_name, $value, $themes) ?>
 						<?= \Controls\button_tag(\Controls\icon("palette") . " " . __("Customize"), "",
 								["onclick" => "Helpers.Prefs.customizeCSS()"]) ?>
-						<?= \Controls\button_tag(\Controls\icon("open_in_new") . " " . __("More themes..."), "",
-								["class" => "alt-info", "onclick" => "window.open(\"https://tt-rss.org/Themes/\")"]) ?>
+						<?= \Controls\button_tag(\Controls\icon('open_in_new') . ' ' . __('More themes...'), '', [
+							'class' => 'alt-info',
+							'onclick' => 'window.open("https://tt-rss.org/docs/Themes.html", "_blank", "noreferrer")',
+						]) ?>
 
 						<?php
 
@@ -663,7 +659,7 @@ class Pref_Prefs extends Handler_Protected {
 
 					} else if ($type_hint == Config::T_BOOL) {
 
-						array_push($listed_boolean_prefs, $pref_name);
+						$listed_boolean_prefs[] = $pref_name;
 
 						if ($pref_name == Prefs::PURGE_UNREAD_ARTICLES && Config::get(Config::FORCE_ARTICLE_PURGE) != 0) {
 							$is_disabled = true;
@@ -681,7 +677,7 @@ class Pref_Prefs extends Handler_Protected {
 								['onclick' => 'Helpers.Digest.preview()', 'style' => 'margin-left : 10px']);
 						}
 
-					} else if (in_array($pref_name, [Prefs::FRESH_ARTICLE_MAX_AGE,
+					} else if (in_array($pref_name, [Prefs::FRESH_ARTICLE_MAX_AGE, Prefs::RECENTLY_READ_MAX_AGE,
 							Prefs::PURGE_OLD_DAYS, Prefs::LONG_DATE_FORMAT, Prefs::SHORT_DATE_FORMAT, Prefs::DIGEST_MIN_SCORE])) {
 
 						if ($pref_name == Prefs::PURGE_OLD_DAYS && Config::get(Config::FORCE_ARTICLE_PURGE) != 0) {
@@ -711,9 +707,10 @@ class Pref_Prefs extends Handler_Protected {
 							"class" => "alt-danger",
 							"onclick" => "dijit.byId('SSL_CERT_SERIAL').attr('value', '')"]);
 
-						print \Controls\button_tag(\Controls\icon("help") . " " . __("More info..."), "", [
-							"class" => "alt-info",
-							"onclick" => "window.open('https://tt-rss.org/wiki/SSL%20Certificate%20Authentication')"]);
+						print \Controls\button_tag(\Controls\icon('help') . ' ' . __('More info...'), '', [
+							'class' => 'alt-info',
+							'onclick' => 'window.open("https://tt-rss.org/docs/SSL-Certificate-Authentication.html", "_blank", "noreferrer")',
+						]);
 
 					} else if ($pref_name == Prefs::DIGEST_PREFERRED_TIME) {
 						print "<input dojoType=\"dijit.form.ValidationTextBox\"
@@ -793,8 +790,8 @@ class Pref_Prefs extends Handler_Protected {
 	}
 
 	function getPluginsList(): void {
-		$system_enabled = array_map("trim", explode(",", (string)Config::get(Config::PLUGINS)));
-		$user_enabled = array_map('trim', explode(',', Prefs::get(Prefs::_ENABLED_PLUGINS, $_SESSION['uid'], $_SESSION['profile'] ?? null)));
+		$system_enabled = array_map(trim(...), explode(',', (string)Config::get(Config::PLUGINS)));
+		$user_enabled = array_map(trim(...), explode(',', Prefs::get(Prefs::_ENABLED_PLUGINS, $_SESSION['uid'], $_SESSION['profile'] ?? null)));
 
 		$tmppluginhost = new PluginHost();
 		$tmppluginhost->load_all($tmppluginhost::KIND_ALL, $_SESSION["uid"], true);
@@ -806,21 +803,21 @@ class Pref_Prefs extends Handler_Protected {
 			$is_local = $tmppluginhost->is_local($plugin);
 			$version = htmlspecialchars($this->_get_plugin_version($plugin));
 
-			array_push($rv, [
-				"name" => $name,
-				"is_local" => $is_local,
-				"system_enabled" => in_array($name, $system_enabled),
-				"user_enabled" => in_array($name, $user_enabled),
-				"has_data" => count($tmppluginhost->get_all($plugin)) > 0,
-				"is_system" => (bool)($about[3] ?? false),
-				"version" => $version,
-				"author" => $about[2] ?? "",
-				"description" => $about[1] ?? "",
-				"more_info" => $about[4] ?? "",
-			]);
+			$rv[] = [
+				'name' => $name,
+				'is_local' => $is_local,
+				'system_enabled' => in_array($name, $system_enabled),
+				'user_enabled' => in_array($name, $user_enabled),
+				'has_data' => count($tmppluginhost->get_all($plugin)) > 0,
+				'is_system' => (bool)($about[3] ?? false),
+				'version' => $version,
+				'author' => $about[2] ?? '',
+				'description' => $about[1] ?? '',
+				'more_info' => $about[4] ?? '',
+			];
 		}
 
-		usort($rv, function($a, $b) { return strcmp($a["name"], $b["name"]); });
+		usort($rv, fn($a, $b) => strcmp($a["name"], $b["name"]));
 
 		print json_encode(['plugins' => $rv, 'is_admin' => $_SESSION['access_level'] >= UserHelper::ACCESS_LEVEL_ADMIN]);
 	}
@@ -872,13 +869,13 @@ class Pref_Prefs extends Handler_Protected {
 						];
 
 						$feed_handlers = array_filter($feed_handlers,
-							fn($plugin) => in_array(get_class($plugin), $feed_handler_whitelist) === false);
+							fn($plugin) => in_array($plugin::class, $feed_handler_whitelist) === false);
 
 						if (count($feed_handlers) > 0) {
 							print_error(
 								T_sprintf("The following plugins use per-feed content hooks. This may cause excessive data usage and origin server load resulting in a ban of your instance: <b>%s</b>" ,
-									implode(", ", array_map(fn($plugin) => get_class($plugin), $feed_handlers))
-								) . " (<a href='https://tt-rss.org/wiki/FeedHandlerPlugins' target='_blank'>".__("More info...")."</a>)"
+									implode(", ", array_map(fn($plugin) => $plugin::class, $feed_handlers))
+								) . " (<a href='https://tt-rss.org/docs/Feed-Handler-Plugins.html' target='_blank' rel='noreferrer'>".__("More info...")."</a>)"
 							);
 						}
 					?> -->
@@ -890,7 +887,7 @@ class Pref_Prefs extends Handler_Protected {
 				</div>
 				<div dojoType="dijit.layout.ContentPane" region="bottom">
 
-					<button dojoType='dijit.form.Button' class="alt-info pull-right" onclick='window.open("https://tt-rss.org/Plugins/")'>
+					<button dojoType='dijit.form.Button' class="alt-info pull-right" onclick='window.open("https://tt-rss.org/docs/Plugins.html", "_blank", "noreferrer")'>
 						<i class='material-icons'>help</i>
 						<?= __("More info") ?>
 					</button>
@@ -1021,7 +1018,7 @@ class Pref_Prefs extends Handler_Protected {
 	}
 
 	function setplugins(): void {
-		$plugins = array_filter($_REQUEST["plugins"] ?? [], 'clean');
+		$plugins = array_filter($_REQUEST['plugins'] ?? [], clean(...));
 
 		Prefs::set(Prefs::_ENABLED_PLUGINS, implode(',', $plugins), $_SESSION['uid'], $_SESSION['profile'] ?? null);
 	}
@@ -1033,7 +1030,7 @@ class Pref_Prefs extends Handler_Protected {
 			return T_sprintf("v%.2f, by %s", $about[0], $about[2]);
 		}
 
-		$ref = new ReflectionClass(get_class($plugin));
+		$ref = new ReflectionClass($plugin::class);
 
 		$plugin_dir = dirname($ref->getFileName());
 
@@ -1055,20 +1052,60 @@ class Pref_Prefs extends Handler_Protected {
 	 */
 	static function _get_updated_plugins(): array {
 		$root_dir = Config::get_self_dir();
-		$plugin_dirs = array_filter(glob("$root_dir/plugins.local/*"), "is_dir");
+		$plugin_dirs = array_filter(glob("$root_dir/plugins.local/*"), is_dir(...));
 		$rv = [];
 
 		foreach ($plugin_dirs as $dir) {
 			if (is_dir("$dir/.git")) {
 				$plugin_name = basename($dir);
 
-				array_push($rv, ["plugin" => $plugin_name, "rv" => self::_plugin_needs_update($root_dir, $plugin_name)]);
+				$rv[] = [
+					'plugin' => $plugin_name,
+					'rv' => self::_plugin_needs_update($root_dir, $plugin_name),
+				];
 			}
 		}
 
-		$rv = array_values(array_filter($rv, fn($item) => $item["rv"]["need_update"]));
+		return array_values(array_filter($rv, fn(array $item): bool => $item['rv'] !== null && $item['rv']['need_update']));
+	}
 
-		return $rv;
+	/**
+	 * @todo Switch to something better.  We don't need to be reinventing the wheel, and someone else has done it better.
+	 * @return array{'stdout': false|string, 'stderr': false|string, 'exit_code': int}|null
+	 */
+	private static function _run_command(string $command, string $dir): ?array {
+		$pipes = [];
+
+		$descriptor_spec = [
+			// 0 => ['pipe', 'r'], // STDIN
+			1 => ['pipe', 'w'], // STDOUT
+			2 => ['pipe', 'w'], // STDERR
+		];
+
+		$proc = proc_open($command, $descriptor_spec, $pipes, $dir);
+
+		if (is_resource($proc)) {
+			return [
+				'stdout' => stream_get_contents($pipes[1]),
+				'stderr' => stream_get_contents($pipes[2]),
+				'exit_code' => proc_close($proc),
+			];
+		}
+
+		return null;
+	}
+
+	/**
+	 * @param string $dir a git repo directory
+	 * @return null|string the current branch if it can be determined, otherwise null (latter includes detached HEAD)
+	 */
+	private static function _git_current_branch(string $dir): ?string {
+		$result = self::_run_command('git rev-parse --abbrev-ref HEAD', $dir);
+
+		if ($result === null || $result['exit_code'] !== 0 || $result['stdout'] === 'HEAD')
+			return null;
+
+		return trim($result['stdout']);
 	}
 
 	/**
@@ -1079,23 +1116,22 @@ class Pref_Prefs extends Handler_Protected {
 		$rv = null;
 
 		if (is_dir($plugin_dir) && is_dir("$plugin_dir/.git")) {
-			$pipes = [];
+			$current_branch = self::_git_current_branch($plugin_dir);
 
-			$descriptorspec = [
-				//0 => ["pipe", "r"], // STDIN
-				1 => ["pipe", "w"], // STDOUT
-				2 => ["pipe", "w"], // STDERR
-			];
+			// be very careful about which values are allowed here (currently used as-is in the command below, improvements planned)
+			if (!in_array($current_branch, self::PLUGIN_UPDATE_ALLOWED_BRANCHES))
+				return $rv;
 
-			$proc = proc_open("git fetch -q origin -a && git log HEAD..origin/master --oneline", $descriptorspec, $pipes, $plugin_dir);
+			$result = self::_run_command("git fetch --quiet origin --append && git log HEAD..origin/{$current_branch} --oneline", $plugin_dir);
 
-			if (is_resource($proc)) {
+			if (is_array($result)) {
 				$rv = [
-					"stdout" => stream_get_contents($pipes[1]),
-					"stderr" => stream_get_contents($pipes[2]),
-					"git_status" => proc_close($proc),
+					'stdout' => $result['stdout'],
+					'stderr' => $result['stderr'],
+					'git_status' => $result['exit_code'],
 				];
-				$rv["need_update"] = !empty($rv["stdout"]);
+
+				$rv['need_update'] = !empty($rv['stdout']);
 			}
 		}
 
@@ -1104,31 +1140,30 @@ class Pref_Prefs extends Handler_Protected {
 
 
 	/**
-	 * @return array{'stdout': false|string, 'stderr': false|string, 'git_status': int}
+	 * @return array{}|array{stdout: false|string, stderr: false|string, git_status: int}
 	 */
 	private function _update_plugin(string $root_dir, string $plugin_name): array {
 		$plugin_dir = "$root_dir/plugins.local/" . basename($plugin_name);
-		$rv = [];
 
 		if (is_dir($plugin_dir) && is_dir("$plugin_dir/.git")) {
-			$pipes = [];
+			$current_branch = self::_git_current_branch($plugin_dir);
 
-			$descriptorspec = [
-				//0 => ["pipe", "r"], // STDIN
-				1 => ["pipe", "w"], // STDOUT
-				2 => ["pipe", "w"], // STDERR
-			];
+			// be very careful about which values are allowed here (currently used as-is in the command below, improvements planned)
+			if (!in_array($current_branch, self::PLUGIN_UPDATE_ALLOWED_BRANCHES))
+				return [];
 
-			$proc = proc_open("git fetch origin -a && git log HEAD..origin/master --oneline && git pull --ff-only origin master", $descriptorspec, $pipes, $plugin_dir);
+			$result = self::_run_command("git fetch origin --append && git log HEAD..origin/{$current_branch} --oneline && git pull --ff-only origin {$current_branch}", $plugin_dir);
 
-			if (is_resource($proc)) {
-				$rv["stdout"] = stream_get_contents($pipes[1]);
-				$rv["stderr"] = stream_get_contents($pipes[2]);
-				$rv["git_status"] = proc_close($proc);
+			if (is_array($result)) {
+				return [
+					'stdout' => $result['stdout'],
+					'stderr' => $result['stderr'],
+					'git_status' => $result['exit_code'],
+				];
 			}
 		}
 
-		return $rv;
+		return [];
 	}
 
 	// https://gist.github.com/mindplay-dk/a4aad91f5a4f1283a5e2#gistcomment-2036828
@@ -1209,18 +1244,20 @@ class Pref_Prefs extends Handler_Protected {
 
 							$pipes = [];
 
-							$descriptorspec = [
+							$descriptor_spec = [
 								1 => ["pipe", "w"], // STDOUT
 								2 => ["pipe", "w"], // STDERR
 							];
 
 							$proc = proc_open("git clone " . escapeshellarg($plugin['clone_url']) . " " . $tmp_dir,
-											$descriptorspec, $pipes, sys_get_temp_dir());
+											$descriptor_spec, $pipes, sys_get_temp_dir());
 
 							if (is_resource($proc)) {
-								$rv["stdout"] = stream_get_contents($pipes[1]);
-								$rv["stderr"] = stream_get_contents($pipes[2]);
-								$rv["git_status"] = proc_close($proc);
+								$rv = [
+									'stdout' => stream_get_contents($pipes[1]),
+									'stderr' => stream_get_contents($pipes[2]),
+									'git_status' => proc_close($proc),
+								];
 
 								// yeah I know about mysterious RC = -1
 								if (file_exists("$tmp_dir/init.php")) {
@@ -1242,7 +1279,6 @@ class Pref_Prefs extends Handler_Protected {
 								} else {
 									$rv['result'] = self::PI_ERR_NO_INIT_PHP;
 								}
-
 							} else {
 								$rv['result'] = self::PI_ERR_EXEC_FAILED;
 							}
@@ -1275,7 +1311,7 @@ class Pref_Prefs extends Handler_Protected {
 	 */
 	private function _get_available_plugins(): array {
 		if ($_SESSION["access_level"] >= UserHelper::ACCESS_LEVEL_ADMIN && Config::get(Config::ENABLE_PLUGIN_INSTALLER)) {
-			$content = json_decode(UrlHelper::fetch(['url' => 'https://tt-rss.org/plugins.json']), true);
+			$content = json_decode(UrlHelper::fetch(['url' => 'https://tt-rss.org/tt-rss/plugins.json']), true);
 
 			if ($content) {
 				return $content;
@@ -1308,16 +1344,16 @@ class Pref_Prefs extends Handler_Protected {
 
 	function updateLocalPlugins(): void {
 		if ($_SESSION["access_level"] >= UserHelper::ACCESS_LEVEL_ADMIN) {
-			$plugins = array_filter(explode(",", $_REQUEST["plugins"] ?? ""), "strlen");
+			$plugins = array_filter(explode(',', $_REQUEST['plugins'] ?? ''), fn($p) => strlen($p) > 0);
 			$root_dir = Config::get_self_dir();
 			$rv = [];
 
 			if ($plugins) {
 				foreach ($plugins as $plugin_name) {
-					array_push($rv, ["plugin" => $plugin_name, "rv" => $this->_update_plugin($root_dir, $plugin_name)]);
+					$rv[] = ['plugin' => $plugin_name, 'rv' => $this->_update_plugin($root_dir, $plugin_name)];
 				}
 			} else {
-				$plugin_dirs = array_filter(glob("$root_dir/plugins.local/*"), "is_dir");
+				$plugin_dirs = array_filter(glob("$root_dir/plugins.local/*"), is_dir(...));
 
 				foreach ($plugin_dirs as $dir) {
 					if (is_dir("$dir/.git")) {
@@ -1326,7 +1362,7 @@ class Pref_Prefs extends Handler_Protected {
 						$test = self::_plugin_needs_update($root_dir, $plugin_name);
 
 						if (!empty($test["stdout"]))
-							array_push($rv, ["plugin" => $plugin_name, "rv" => $this->_update_plugin($root_dir, $plugin_name)]);
+							$rv[] = ['plugin' => $plugin_name, 'rv' => $this->_update_plugin($root_dir, $plugin_name)];
 					}
 				}
 			}
@@ -1355,40 +1391,69 @@ class Pref_Prefs extends Handler_Protected {
 			->where('owner_uid', $_SESSION['uid'])
 			->find_one($id);
 
-		if ($profile) {
-			$_SESSION["profile"] = $id;
-		} else {
-			$_SESSION["profile"] = null;
-		}
+		$_SESSION['profile'] = $profile ? $id : null;
 	}
 
+	/**
+	 * @todo this should result in an error on failures
+	 */
 	function cloneprofile(): void {
-		$old_profile = $_REQUEST["old_profile"] ?? 0;
-		$new_title = clean($_REQUEST["new_title"]);
+		$old_profile_id = $_REQUEST['old_profile'] ?? '';
 
-		if ($old_profile && $new_title) {
-			$new_profile = ORM::for_table('ttrss_settings_profiles')->create();
-			$new_profile->title = $new_title;
-			$new_profile->owner_uid = $_SESSION['uid'];
+		if (ctype_digit($old_profile_id))
+			$old_profile_id = (int) $old_profile_id;
+		else
+			return;
 
-			if ($new_profile->save()) {
-				$sth = $this->pdo->prepare("INSERT INTO ttrss_user_prefs
-					(owner_uid, pref_name, profile, value)
-						SELECT
-							:uid,
-							pref_name,
-							:new_profile,
-							value
-						FROM ttrss_user_prefs
-						WHERE owner_uid = :uid AND profile = :old_profile");
+		$new_title = clean($_REQUEST['new_title']);
 
-				$sth->execute([
-					"uid" => $_SESSION["uid"],
-					"new_profile" => $new_profile->id,
-					"old_profile" => $old_profile,
-				]);
+		if (!$new_title)
+			return;
+
+		$new_profile = ORM::for_table('ttrss_settings_profiles')->create();
+		$new_profile->title = $new_title;
+		$new_profile->owner_uid = $_SESSION['uid'];
+
+		if (!$new_profile->save())
+			return;
+
+		$params = [
+			'uid' => $_SESSION['uid'],
+			'new_profile' => $new_profile->id,
+		];
+
+		// NOTE: In 'ttrss_user_prefs2' the default profile is represented by 'profile' being null,
+		// but 0 is what gets used as its representative ID on the frontend.
+		if ($old_profile_id === 0) {
+			// The old/source profile is the default.  Exclude copying over preferences only valid for the default profile.
+			$blacklist_params = [];
+			$blacklist_placeholders = [];
+
+			foreach (Prefs::_PROFILE_BLACKLIST as $i => $pref) {
+				$key = ":blacklist_{$i}";
+				$blacklist_placeholders[] = $key;
+				$blacklist_params[$key] = $pref;
 			}
+
+			$profile_qpart = 'profile IS NULL AND pref_name NOT IN (' . implode(', ', $blacklist_placeholders) . ')';
+			$params = array_merge($params, $blacklist_params);
+		} else {
+			$profile_qpart = 'profile = :old_profile_id';
+			$params['old_profile_id'] = $old_profile_id;
 		}
+
+		$sth = $this->pdo->prepare('INSERT INTO ttrss_user_prefs2
+			(owner_uid, pref_name, profile, value)
+				SELECT
+					:uid,
+					pref_name,
+					:new_profile,
+					value
+				FROM ttrss_user_prefs2
+				WHERE owner_uid = :uid
+				AND ' . $profile_qpart);
+
+		$sth->execute($params);
 	}
 
 	function remprofiles(): void {
@@ -1438,29 +1503,30 @@ class Pref_Prefs extends Handler_Protected {
 
 	// TODO: this maybe needs to be unified with Public::getProfiles()
 	function getProfiles(): void {
-		$rv = [];
+		$rv = [
+			[
+				'title' => __('Default profile'),
+				'id' => 0,
+				'initialized' => true,
+				'active' => empty($_SESSION['profile']),
+			],
+		];
 
 		$profiles = ORM::for_table('ttrss_settings_profiles')
 							->where('owner_uid', $_SESSION['uid'])
 							->order_by_expr('title')
 							->find_many();
 
-		array_push($rv, ["title" => __("Default profile"),
-				"id" => 0,
-				"initialized" => true,
-				"active" => empty($_SESSION["profile"])
-			]);
-
 		foreach ($profiles as $profile) {
 			$profile['active'] = ($_SESSION["profile"] ?? 0) == $profile->id;
 
-			$num_settings = ORM::for_table('ttrss_user_prefs')
+			$num_settings = ORM::for_table('ttrss_user_prefs2')
 				->where('profile', $profile->id)
 				->count();
 
 			$profile['initialized'] = $num_settings > 0;
 
-			array_push($rv, $profile->as_array());
+			$rv[] = $profile->as_array();
 		};
 
 		print json_encode($rv);

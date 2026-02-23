@@ -18,8 +18,10 @@
 	ini_set('display_startup_errors', "false");
 
 	// config.php is optional
-	if (stream_resolve_include_path("config.php"))
-		require_once "config.php";
+	$config_path = stream_resolve_include_path('config.php');
+
+	if ($config_path)
+		require_once $config_path;
 
 	require_once "autoload.php";
 
@@ -30,21 +32,21 @@
 	 * @deprecated by Prefs::get()
 	 */
 	function get_pref(string $pref_name, ?int $owner_uid = null): bool|int|null|string {
-		return Prefs::get($pref_name, $owner_uid ? $owner_uid : $_SESSION["uid"], $_SESSION["profile"] ?? null);
+		return Prefs::get($pref_name, $owner_uid ?: $_SESSION["uid"], $_SESSION["profile"] ?? null);
 	}
 
 	/**
 	 * @deprecated by Prefs::set()
 	 */
 	function set_pref(string $pref_name, bool|int|string $value, ?int $owner_uid = null, bool $strip_tags = true): bool {
-		return Prefs::set($pref_name, $value, $owner_uid ? $owner_uid : $_SESSION["uid"], $_SESSION["profile"] ?? null, $strip_tags);
+		return Prefs::set($pref_name, $value, $owner_uid ?: $_SESSION["uid"], $_SESSION["profile"] ?? null, $strip_tags);
 	}
 
 	/**
 	 * @return array<string, string>
 	 */
 	function get_translations(): array {
-		$t = array(
+		$t = [
 					"auto"  => __("Detect automatically"),
 					"ar_SA" => "العربيّة (Arabic)",
 					"be"    => "Беларуская",
@@ -75,12 +77,12 @@
 					"sv_SE" => "Svenska",
 					"fi_FI" => "Suomi",
 					"ta"    => "Tamil",
-					"tr_TR" => "Türkçe");
+					"tr_TR" => "Türkçe"];
 
 		return $t;
 	}
 
-	require_once "lib/gettext/gettext.inc.php";
+	require_once __DIR__ . '/../lib/gettext/gettext.inc.php';
 
 	function startup_gettext(): void {
 
@@ -258,16 +260,16 @@
 	/* end compat shims */
 
 	/**
-	 * This is used for user http parameters unless HTML code is actually needed.
+	 * This is used for user HTTP parameters unless HTML code is actually needed.
 	 */
 	function clean(mixed $param): mixed {
-		if (is_array($param)) {
-			return array_map("trim", array_map("strip_tags", $param));
-		} else if (is_string($param)) {
-			return trim(strip_tags($param));
-		} else {
-			return $param;
-		}
+		$filter = static fn($v) => is_string($v) ? trim(strip_tags($v)) : $v;
+
+		return match (true) {
+			is_array($param) => array_map($filter, $param),
+			is_string($param) => $filter($param),
+			default => $param,
+		};
 	}
 
 	function with_trailing_slash(string $str) : string {
@@ -284,7 +286,7 @@
 
 			try {
 				$idx = function_exists("random_int") ? random_int(0, strlen($possible) - 1) : mt_rand(0, strlen($possible) - 1);
-			} catch (Exception $e) {
+			} catch (Exception) {
 				$idx = mt_rand(0, strlen($possible) - 1);
 			}
 
@@ -329,7 +331,7 @@
 	}
 
 	/** Convert values accepted by tt-rss as true/false to PHP booleans
-	 * @see https://tt-rss.org/ApiReference/#boolean-values
+	 * @see https://tt-rss.org/docs/API-Reference.html#boolean-values
 	 * @param null|string $s null values are considered false
 	 */
 	function sql_bool_to_bool(?string $s): bool {
@@ -399,7 +401,7 @@
 	}
 
 	function uniqid_short(): string {
-		return uniqid(base_convert((string)rand(), 10, 36));
+		return uniqid(base_convert((string)random_int(0, mt_getrandmax()), 10, 36));
 	}
 
 	function T_sprintf(): string {

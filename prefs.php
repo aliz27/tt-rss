@@ -1,8 +1,6 @@
 <?php
-	set_include_path(__DIR__ . "/include" . PATH_SEPARATOR . get_include_path());
-
-	require_once "autoload.php";
-	require_once "sessions.php";
+	require_once __DIR__ . '/include/autoload.php';
+	require_once __DIR__ . '/include/sessions.php';
 
 	Config::sanity_check();
 
@@ -35,6 +33,16 @@
 	</script>
 
 	<?php UserHelper::print_user_stylesheet() ?>
+
+	<style>
+	<?php
+		foreach (PluginHost::getInstance()->get_plugins() as $p) {
+			$css = $p->get_prefs_css();
+			if ($css)
+				echo $css;
+		}
+	?>
+	</style>
 
 	<link rel="shortcut icon" type="image/png" href="images/favicon.png"/>
 	<link rel="icon" type="image/png" sizes="72x72" href="images/favicon-72px.png" />
@@ -108,7 +116,7 @@
 
 <body class="flat ttrss_main ttrss_prefs css_loading">
 
-<noscript class="alert alert-error"><?= ('Javascript is disabled. Please enable it.') ?></noscript>
+<noscript class="alert alert-error"><?= __('Javascript is disabled. Please enable it.') ?></noscript>
 
 <div id="notify" class="notify"></div>
 <div id="cmdline" style="display : none"></div>
@@ -123,11 +131,16 @@
 </div>
 
 <div id="header">
-	<i class="material-icons net-alert" style="display : none"
-   	title="<?= __("Communication problem with server.") ?>">error_outline</i>
-	<i class="material-icons log-alert" style="display : none" onclick="App.openPreferences('system')"
-		title="<?= __("Recent entries found in event log.") ?>">warning</i>
-	<i id="updates-available" class="material-icons icon-new-version" style="display : none">new_releases</i>
+	<i class="material-icons net-alert" style="display: none"
+		title="<?= __("Communication problem with server.") ?>">error_outline</i>
+	<i class="material-icons log-alert" style="display: none"
+		 title="<?= __("Recent entries found in event log.") ?>" onclick="App.openPreferences('system')">warning</i>
+	<a id="updates-available" target="_blank" rel="noopener noreferrer" href="" style="display: none">
+		<i class="material-icons icon-new-version" title="<?= __('Updates for Tiny Tiny RSS are available.') ?>">new_releases</i>
+	</a>
+	<a id="plugin-updates-available" href="prefs.php" onclick="dijit.byId('pref-tabs').selectChild(dijit.byId('prefsTab')); return false" style="display: none">
+		<i class="material-icons icon-new-version" title="<?= __('Updates for some local plugins are available.') ?>">new_releases</i>
+	</a>
 	<a href="#" onclick="document.location.href = 'index.php'"><?= __('Exit preferences') ?></a>
 </div>
 
@@ -161,10 +174,8 @@
         ?>
         </div>
 		<div id="footer" dojoType="dijit.layout.ContentPane" region="bottom">
-			<a class="text-muted" target="_blank" href="https://tt-rss.org/">Tiny Tiny RSS</a>
+			<a class="text-muted" target="_blank" href="https://github.com/tt-rss/tt-rss">Tiny Tiny RSS</a>
 				<span>v<?= Config::get_version_html() ?></span>
-				&copy; 2005-<?= date('Y') ?>
-			<a class="text-muted" target="_blank" href="https://fakecake.org/">Andrew Dolgov</a>
     </div>
 </div>
 

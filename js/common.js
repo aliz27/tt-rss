@@ -1,11 +1,10 @@
 'use strict';
 
-/* global dijit, App, dojo, __csrf_token */
-/* eslint-disable no-new */
+/* global App, __csrf_token */
 
 /* exported __ */
 function __(msg) {
-	if (typeof App != "undefined") {
+	if (typeof App !== "undefined") {
 		return App.l10n.__(msg);
 	} else {
 		return msg;
@@ -15,18 +14,6 @@ function __(msg) {
 /* exported ngettext */
 function ngettext(msg1, msg2, n) {
 	return __((parseInt(n) > 1) ? msg2 : msg1);
-}
-
-/* exported $ */
-function $(id) {
-	console.warn("FIXME: please use App.byId() or document.getElementById() instead of $():", id);
-	return document.getElementById(id);
-}
-
-/* exported $$ */
-function $$(query) {
-	console.warn("FIXME: please use App.findAll() or document.querySelectorAll() instead of $$():", query);
-	return document.querySelectorAll(query);
 }
 
 // polyfill for safari https://raw.githubusercontent.com/pladaria/requestidlecallback-polyfill/master/index.js
@@ -49,45 +36,20 @@ window.cancelIdleCallback =
 			clearTimeout(id);
 		};
 
-Element.prototype.hasClassName = function(className) {
-	return this.classList.contains(className);
-};
-
-Element.prototype.addClassName = function(className) {
-	return this.classList.add(className);
-};
-
-Element.prototype.removeClassName = function(className) {
-	return this.classList.remove(className);
-};
-
-Element.prototype.toggleClassName = function(className) {
-	if (this.hasClassName(className))
-		return this.removeClassName(className);
-	else
-		return this.addClassName(className);
-};
-
-
 Element.prototype.setStyle = function(args) {
-	Object.keys(args).forEach((k) => {
-		this.style[k] = args[k];
-	});
+  Object.assign(this.style, args);
 };
 
 Element.prototype.show = function() {
-	this.style.display = "";
+	this.style.display = '';
 };
 
 Element.prototype.hide = function() {
-	this.style.display = "none";
+	this.style.display = 'none';
 };
 
 Element.prototype.toggle = function() {
-	if (this.visible())
-		this.hide();
-	else
-		this.show();
+	this.visible() ? this.hide() : this.show();
 };
 
 // https://gist.github.com/alirezas/c4f9f43e9fe1abba9a4824dd6fc60a55
@@ -99,76 +61,55 @@ Element.prototype.fadeOut = function() {
 		if ((self.style.opacity -= 0.1) < 0) {
 			self.style.display = "none";
 		} else {
-			requestAnimationFrame(fade);
+			window.requestAnimationFrame(fade);
 		}
 	}());
 };
 
 Element.prototype.fadeIn = function(display = undefined){
 	this.style.opacity = 0;
-	this.style.display = display == undefined ? "block" : display;
+	this.style.display = display === undefined ? "block" : display;
 	const self = this;
 
 	(function fade() {
 		let val = parseFloat(self.style.opacity);
 		if (!((val += 0.1) > 1)) {
 			self.style.opacity = val;
-			requestAnimationFrame(fade);
+			window.requestAnimationFrame(fade);
 		}
 	}());
 };
 
 Element.prototype.visible = function() {
-	return window.getComputedStyle(this).display != "none"; //&& this.offsetHeight != 0 && this.offsetWidth != 0;
+	return window.getComputedStyle(this).display !== "none"; //&& this.offsetHeight !== 0 && this.offsetWidth !== 0;
 }
 
 Element.visible = function(elem) {
-	if (typeof elem == "string")
+	if (typeof elem === "string")
 		elem = document.getElementById(elem);
 
 	return elem.visible();
 }
 
 Element.show = function(elem) {
-	if (typeof elem == "string")
+	if (typeof elem === "string")
 		elem = document.getElementById(elem);
 
 	return elem.show();
 }
 
 Element.hide = function(elem) {
-	if (typeof elem == "string")
+	if (typeof elem === "string")
 		elem = document.getElementById(elem);
 
 	return elem.hide();
 }
 
 Element.toggle = function(elem) {
-	if (typeof elem == "string")
+	if (typeof elem === "string")
 		elem = document.getElementById(elem);
 
 	return elem.toggle();
-}
-
-Element.hasClassName = function (elem, className) {
-	if (typeof elem == "string")
-		elem = document.getElementById(elem);
-
-	return elem.hasClassName(className);
-}
-
-Array.prototype.remove = function(s) {
-	for (let i=0; i < this.length; i++) {
-		if (s == this[i]) this.splice(i, 1);
-	}
-};
-
-Array.prototype.uniq = function() {
-	return this.filter((v, i, a) => a.indexOf(v) === i);
-};
-
-String.prototype.stripTags = function() {
-	return this.replace(/<\w+(\s+("[^"]*"|'[^']*'|[^>])+)?(\/)?>|<\/\w+>/gi, '');
 }
 
 /* exported xhr */
@@ -177,25 +118,21 @@ const xhr = {
 	post: function(url, params = {}, complete = undefined, failed = undefined) {
 		this._ts = new Date().getTime();
 
-		console.log('xhr.post', '>>>', params);
-
 		return new Promise((resolve, reject) => {
-			if (typeof __csrf_token != "undefined")
+			if (typeof __csrf_token !== "undefined")
 				params = {...params, ...{csrf_token: __csrf_token}};
 
 			dojo.xhrPost({url: url,
 				postData: dojo.objectToQuery(params),
 				handleAs: "text",
 				error: function(error) {
-					if (failed != undefined)
+					if (failed !== undefined)
 						failed(error);
 
 					reject(error);
 				},
 				load: function(data, ioargs) {
-					console.log('xhr.post', '<<<', ioargs.xhr, (new Date().getTime() - xhr._ts) + " ms");
-
-					if (complete != undefined)
+					if (typeof complete === 'function')
 						complete(data, ioargs.xhr);
 
 					resolve(data)
@@ -211,41 +148,38 @@ const xhr = {
 				try {
 					obj = JSON.parse(data);
 				} catch (e) {
-					console.error("xhr.json", e, xhr);
+					console.error('xhr.json: JSON parse error', e);
 
-					if (failed != undefined)
+					if (typeof failed === 'function')
 						failed(e);
 
 					reject(e);
 					return;
 				}
 
-				console.log('xhr.json', '<<<', obj, (new Date().getTime() - xhr._ts) + " ms");
-
-				if (obj && typeof App != "undefined")
+				if (obj && typeof App !== 'undefined') {
 					if (!App.handleRpcJson(obj)) {
 
-						if (failed != undefined)
+						if (typeof failed === 'function')
 							failed(obj);
 
 						reject(obj);
 						return;
 					}
+				}
 
-				if (complete != undefined) complete(obj);
+				if (typeof complete === 'function')
+					complete(obj);
 
 				resolve(obj);
-			}
-		));
+			}));
 	}
 };
 
 /* exported xhrPost */
 function xhrPost(url, params = {}, complete = undefined) {
-	console.log("xhrPost:", params);
-
 	return new Promise((resolve, reject) => {
-		if (typeof __csrf_token != "undefined")
+		if (typeof __csrf_token !== "undefined")
 			params = {...params, ...{csrf_token: __csrf_token}};
 
 		dojo.xhrPost({url: url,
@@ -255,7 +189,7 @@ function xhrPost(url, params = {}, complete = undefined) {
 				reject(error);
 			},
 			load: function(data, ioargs) {
-				if (complete != undefined)
+				if (complete !== undefined)
 					complete(ioargs.xhr);
 
 				resolve(ioargs.xhr)
@@ -273,17 +207,13 @@ function xhrJson(url, params = {}, complete = undefined) {
 /* exported Lists */
 const Lists = {
 	onRowChecked: function(elem) {
-		const checked = elem.domNode ? elem.attr("checked") : elem.checked;
 		// account for dojo checkboxes
+		const checked = elem.domNode ? elem.attr('checked') : elem.checked;
 		elem = elem.domNode || elem;
-
-		const row = elem.closest("li");
-
-		if (row)
-			checked ? row.addClassName("Selected") : row.removeClassName("Selected");
+		elem.closest('li')?.classList.toggle('Selected', checked);
 	},
 	select: function(elem, selected) {
-		if (typeof elem == "string")
+		if (typeof elem === "string")
 			elem = document.getElementById(elem);
 
 		elem.querySelectorAll("li").forEach((row) => {
@@ -304,11 +234,11 @@ const Lists = {
 	getSelected: function(elem) {
 		const rv = [];
 
-		if (typeof elem == "string")
+		if (typeof elem === "string")
 			elem = document.getElementById(elem);
 
 		elem.querySelectorAll("li").forEach((row) => {
-			if (row.hasClassName("Selected")) {
+			if (row.classList.contains('Selected')) {
 				const rowVal = row.getAttribute("data-row-value");
 
 				if (rowVal) {
@@ -331,17 +261,12 @@ const Lists = {
 const Tables = {
 	onRowChecked: function(elem) {
 		// account for dojo checkboxes
-		const checked = elem.domNode ? elem.attr("checked") : elem.checked;
+		const checked = elem.domNode ? elem.attr('checked') : elem.checked;
 		elem = elem.domNode || elem;
-
-		const row = elem.closest("tr");
-
-		if (row)
-			checked ? row.addClassName("Selected") : row.removeClassName("Selected");
-
+		elem.closest('tr')?.classList.toggle('Selected', checked);
 	},
 	select: function(elem, selected) {
-		if (typeof elem == "string")
+		if (typeof elem === "string")
 			elem = document.getElementById(elem);
 
 		elem.querySelectorAll("tr").forEach((row) => {
@@ -362,11 +287,11 @@ const Tables = {
 	getSelected: function(elem) {
 		const rv = [];
 
-		if (typeof elem == "string")
+		if (typeof elem === "string")
 			elem = document.getElementById(elem);
 
 		elem.querySelectorAll("tr").forEach((row) => {
-			if (row.hasClassName("Selected")) {
+			if (row.classList.contains('Selected')) {
 				const rowVal = row.getAttribute("data-row-value");
 
 				if (rowVal) {
@@ -398,8 +323,8 @@ const Cookie = {
 		const ca = document.cookie.split(';');
 		for (let i=0; i < ca.length; i++) {
 			let c = ca[i];
-			while (c.charAt(0) == ' ') c = c.substring(1);
-			if (c.indexOf(name) == 0) return decodeURIComponent(c.substring(name.length, c.length));
+			while (c.charAt(0) === ' ') c = c.substring(1);
+			if (c.indexOf(name) === 0) return decodeURIComponent(c.substring(name.length, c.length));
 		}
 		return "";
 	},
@@ -425,12 +350,12 @@ const Notify = {
 		kind = kind || this.KIND_GENERIC;
 		keep = keep || false;
 
-		const notify = App.byId("notify");
+		const notify = document.getElementById("notify");
 
 		window.clearTimeout(this.timeout);
 
 		if (!msg) {
-			notify.removeClassName("visible");
+			notify.classList.remove('visible');
 			return;
 		}
 
@@ -439,27 +364,25 @@ const Notify = {
 
 		notify.className = "notify";
 
-		console.warn('notify', msg, kind);
-
 		switch (kind) {
 			case this.KIND_INFO:
-				notify.addClassName("notify_info")
-				icon = "notifications";
+				notify.classList.add('notify_info')
+				icon = 'notifications';
 				break;
 			case this.KIND_ERROR:
-				notify.addClassName("notify_error");
-				icon = "error";
+				notify.classList.add('notify_error');
+				icon = 'error';
 				break;
 			case this.KIND_PROGRESS:
-				notify.addClassName("notify_progress");
-				icon = App.getInitParam("icon_oval")
+				notify.classList.add('notify_progress');
+				icon = App.getInitParam('icon_oval');
 				break;
 			default:
-				icon = "notifications";
+				icon = 'notifications';
 		}
 
 		if (icon)
-			if (icon.indexOf("data:image") != -1)
+			if (icon.indexOf("data:image") !== -1)
 				msgfmt = "<img src=\"%s\">".replace("%s", icon) + msgfmt;
 			else
 				msgfmt = "<i class='material-icons icon-notify'>%s</i>".replace("%s", icon) + msgfmt;
@@ -468,24 +391,21 @@ const Notify = {
 			__("Click to close") + "\" onclick=\"Notify.close()\">close</i>";
 
 		notify.innerHTML = msgfmt;
-		notify.addClassName("visible");
+		notify.classList.add('visible');
 
 		if (!keep)
 			this.timeout = window.setTimeout(() => {
-				notify.removeClassName("visible");
+				notify.classList.remove('visible');
 			}, this.default_timeout);
 
 	},
-	info: function(msg, keep) {
-		keep = keep || false;
+	info: function(msg, keep = false) {
 		this.msg(msg, keep, this.KIND_INFO);
 	},
-	progress: function(msg, keep) {
-		keep = keep || true;
+	progress: function(msg, keep = true) {
 		this.msg(msg, keep, this.KIND_PROGRESS);
 	},
-	error: function(msg, keep) {
-		keep = keep || true;
+	error: function(msg, keep = true) {
 		this.msg(msg, keep, this.KIND_ERROR);
 	}
 };

@@ -1,14 +1,11 @@
 #!/usr/bin/env php
 <?php
-	set_include_path(__DIR__ ."/include" . PATH_SEPARATOR .
-		get_include_path());
-
 	declare(ticks = 1);
 	chdir(__DIR__);
 
 	define('DISABLE_SESSIONS', true);
 
-	require_once "autoload.php";
+	require_once __DIR__ . '/include/autoload.php';
 
 	Config::sanity_check();
 
@@ -30,8 +27,8 @@
 
 	$master_handlers_installed = false;
 
-	$children = array();
-	$ctimes = array();
+	$children = [];
+	$ctimes = [];
 
 	$last_checkpoint = -1;
 
@@ -42,13 +39,13 @@
 		global $children;
 		global $ctimes;
 
-		$tmp = array();
+		$tmp = [];
 
 		foreach ($children as $pid) {
 			if (pcntl_waitpid($pid, $status, WNOHANG) != $pid) {
 
 				if (file_is_locked("update_daemon-$pid.lock")) {
-					array_push($tmp, $pid);
+					$tmp[] = $pid;
 				} else {
 					Debug::log("Child process with PID $pid seems active but lockfile is unlocked.");
 					unset($ctimes[$pid]);
@@ -122,12 +119,12 @@
 
 	pcntl_signal(SIGCHLD, 'sigchld_handler');
 
-	$longopts = array("log:",
+	$longopts = ["log:",
 			"log-level:",
 			"tasks:",
 			"interval:",
 			"quiet",
-			"help");
+			"help"];
 
 	$options = getopt("", $longopts);
 
@@ -238,18 +235,18 @@
 						Debug::log("Installing shutdown handlers");
 						pcntl_signal(SIGINT, 'sigint_handler');
 						pcntl_signal(SIGTERM, 'sigint_handler');
-						register_shutdown_function('shutdown', posix_getpid());
+						register_shutdown_function(shutdown(...), posix_getpid());
 						$master_handlers_installed = true;
 					}
 
 					Debug::log("Spawned child process with PID $pid for task $j.");
-					array_push($children, $pid);
+					$children[] = $pid;
 					$ctimes[$pid] = time();
 				} else {
 					pcntl_signal(SIGCHLD, SIG_IGN);
 					pcntl_signal(SIGINT, 'task_sigint_handler');
 
-					register_shutdown_function('task_shutdown');
+					register_shutdown_function(task_shutdown(...));
 
 					$quiet = (isset($options["quiet"])) ? "--quiet" : "";
 					$log = function_exists("flock") && isset($options['log']) ? '--log '.$options['log'] : '';

@@ -1,12 +1,12 @@
 .cdm {
-	/*i.material-icons {
+	/* i.material-icons {
 		color : @color-icon;
-	}*/
+	} */
 
 	.header, .footer {
 		display : flex;
-		flex-direction : row;
-		flex-wrap : nowrap;
+		flex-direction: row;
+		flex-wrap: nowrap;
 	}
 
 	.header img, .footer img,
@@ -53,10 +53,6 @@
 			font-weight : normal;
 			font-size : @font-size-small;
 			white-space : nowrap;
-		}
-
-		input {
-			margin : 0px 4px;
 		}
 
 		.feed {
@@ -136,7 +132,7 @@
 
 		img,
 		video {
-			border-width : 0px;
+			border-width : 0;
 			max-width : 98%;
 			width : auto;
 			height : auto;
@@ -155,7 +151,7 @@
 		}
 
 		.footer {
-			border: 0px solid @border-default;
+			border: 0 solid @border-default;
 			border-bottom-width: 1px;
 		}
 
@@ -202,7 +198,7 @@
 	}
 
 	.feed-title {
-		border: 0px solid @color-link;
+		border: 0 solid @color-link;
 		border-bottom-width: 1px;
 		padding: 5px 3px 5px 5px;
 
@@ -240,7 +236,7 @@
 
 	&.expandable {
 		background-color : @color-panel-bg;
-		border: 0px solid @border-default;
+		border: 0 solid @border-default;
 		border-bottom-width: 1px;
 
 		> hr {
@@ -331,7 +327,7 @@
 	&.expandable.active,
 	&.expanded {
 		.header[data-is-stuck] {
-			box-shadow : 0 1px 1px -1px rgba(0,0,0,0.1);
+			box-shadow: 0 1px 1px -1px rgba(0, 0, 0, 0.1);
 			border: 0 solid @border-default;
 			border-bottom-width: 1px;
 			background : fade(@default-bg, 90%) ! important;

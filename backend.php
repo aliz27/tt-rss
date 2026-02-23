@@ -1,7 +1,4 @@
 <?php
-	set_include_path(__DIR__ ."/include" . PATH_SEPARATOR .
-		get_include_path());
-
 	$op = $_REQUEST['op'] ?? '';
 	$method = !empty($_REQUEST['subop']) ?
 		$_REQUEST['subop'] :
@@ -12,19 +9,16 @@
 	else
 		$method = strtolower($method);
 
-	/* Public calls compatibility shim */
-
-	$public_calls = array("rss", "getUnread", "getProfiles", "share");
-
-	if (array_search($op, $public_calls) !== false) {
-		header("Location: public.php?" . $_SERVER['QUERY_STRING']);
+	// Public calls compatibility shim
+	if (in_array($op, ['rss', 'getUnread', 'getProfiles', 'share'])) {
+		header('Location: public.php?' . $_SERVER['QUERY_STRING']);
 		return;
 	}
 
 	$csrf_token = $_POST['csrf_token'] ?? "";
 
-	require_once "autoload.php";
-	require_once "sessions.php";
+	require_once __DIR__ . '/include/autoload.php';
+	require_once __DIR__ . '/include/sessions.php';
 
 	$op = (string)clean($op);
 	$method = (string)clean($method);
@@ -57,16 +51,16 @@
 		return;
 	}
 
-	$purge_intervals = array(
+	$purge_intervals = [
 		0  => __("Use default"),
 		-1 => __("Never purge"),
 		7  => __("1 week old"),
 		14 => __("2 weeks old"),
 		31 => __("1 month old"),
 		60 => __("2 months old"),
-		90 => __("3 months old"));
+		90 => __("3 months old")];
 
-	$update_intervals = array(
+	$update_intervals = [
 		0   => __("Default interval"),
 		-1  => __("Disable updates"),
 		15  => __("15 minutes"),
@@ -75,9 +69,9 @@
 		240 => __("4 hours"),
 		720 => __("12 hours"),
 		1440 => __("Daily"),
-		10080 => __("Weekly"));
+		10080 => __("Weekly")];
 
-	$update_intervals_nodefault = array(
+	$update_intervals_nodefault = [
 		-1  => __("Disable updates"),
 		15  => __("15 minutes"),
 		30  => __("30 minutes"),
@@ -85,7 +79,7 @@
 		240 => __("4 hours"),
 		720 => __("12 hours"),
 		1440 => __("Daily"),
-		10080 => __("Weekly"));
+		10080 => __("Weekly")];
 
 	$access_level_names = [
 		UserHelper::ACCESS_LEVEL_DISABLED 	=> __("Disabled"),
@@ -152,7 +146,7 @@
 						} else {
 							header("Content-Type: application/json");
 
-							print Errors::to_json(Errors::E_UNKNOWN_METHOD, ["info" => get_class($handler) . "->$method"]);
+							print Errors::to_json(Errors::E_UNKNOWN_METHOD, ["info" => $handler::class . "->$method"]);
 						}
 					}
 
@@ -175,5 +169,5 @@
 	}
 
 	header("Content-Type: application/json");
-	print Errors::to_json(Errors::E_UNKNOWN_METHOD, [ "info" => (isset($handler) ? get_class($handler) : "UNKNOWN:".$op) . "->$method"]);
+	print Errors::to_json(Errors::E_UNKNOWN_METHOD, [ "info" => (isset($handler) ? $handler::class : "UNKNOWN:".$op) . "->$method"]);
 

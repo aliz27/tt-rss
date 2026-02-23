@@ -1,6 +1,6 @@
 <?php
 class FeedParser {
-	private DOMDocument $doc;
+	private readonly DOMDocument $doc;
 
 	private ?string $error = null;
 
@@ -29,8 +29,12 @@ class FeedParser {
 		libxml_clear_errors();
 
 		$this->type = $this::FEED_UNKNOWN;
-
 		$this->doc = new DOMDocument();
+
+		if (empty($data)) {
+			$this->error = 'Empty feed data provided';
+			return;
+		}
 		$this->doc->loadXML($data);
 
 		mb_substitute_character("none");
@@ -100,9 +104,9 @@ class FeedParser {
 				if (empty($articles) || $articles->length == 0)
 					$articles = $xpath->query("//atom03:entry");
 
-				foreach ($articles as $article) {
-					array_push($this->items, new FeedItem_Atom($article, $this->doc, $this->xpath));
-				}
+				/** @var DOMElement $article */
+				foreach ($articles as $article)
+					$this->items[] = new FeedItem_Atom($article, $this->doc, $this->xpath);
 
 				break;
 			case $this::FEED_RSS:
@@ -122,11 +126,9 @@ class FeedParser {
 						$this->link = $link->nodeValue;
 				}
 
-				$articles = $xpath->query("//channel/item");
-
-				foreach ($articles as $article) {
-					array_push($this->items, new FeedItem_RSS($article, $this->doc, $this->xpath));
-				}
+				/** @var DOMElement $article */
+				foreach ($xpath->query('//channel/item') as $article)
+					$this->items[] = new FeedItem_RSS($article, $this->doc, $this->xpath);
 
 				break;
 			case $this::FEED_RDF:
@@ -144,11 +146,9 @@ class FeedParser {
 					$this->link = $link->nodeValue;
 				}
 
-				$articles = $xpath->query("//rssfake:item");
-
-				foreach ($articles as $article) {
-					array_push($this->items, new FeedItem_RSS($article, $this->doc, $this->xpath));
-				}
+				/** @var DOMElement $article */
+				foreach ($xpath->query('//rssfake:item') as $article)
+					$this->items[] = new FeedItem_RSS($article, $this->doc, $this->xpath);
 
 				break;
 		}
@@ -219,7 +219,7 @@ class FeedParser {
 
 	/** @return array<string> */
 	function get_links(string $rel) : array {
-		$rv = array();
+		$rv = [];
 
 		switch ($this->type) {
 		case $this::FEED_ATOM:
@@ -227,9 +227,8 @@ class FeedParser {
 
 			/** @var DOMElement $link */
 			foreach ($links as $link) {
-				if (!$rel || $link->hasAttribute('rel') && $link->getAttribute('rel') == $rel) {
-					array_push($rv, clean(trim($link->getAttribute('href'))));
-				}
+				if (!$rel || $link->hasAttribute('rel') && $link->getAttribute('rel') == $rel)
+					$rv[] = clean(trim($link->getAttribute('href')));
 			}
 			break;
 		case $this::FEED_RSS:
@@ -237,9 +236,8 @@ class FeedParser {
 
 			/** @var DOMElement $link */
 			foreach ($links as $link) {
-				if (!$rel || $link->hasAttribute('rel') && $link->getAttribute('rel') == $rel) {
-					array_push($rv, clean(trim($link->getAttribute('href'))));
-				}
+				if (!$rel || $link->hasAttribute('rel') && $link->getAttribute('rel') == $rel)
+					$rv[] = clean(trim($link->getAttribute('href')));
 			}
 			break;
 		}

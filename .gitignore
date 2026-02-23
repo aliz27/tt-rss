@@ -7,12 +7,14 @@ Thumbs.db
 /locale/**/*.po~
 /plugins.local/fever
 /themes.local/*
+/templates.local/*
 /config.php
 /feed-icons/*
 /cache/*/*
 /lock/*
 /.vscode/settings.json
 /vendor/**/.git
-/.phpunit.result.cache
+/.phpunit.cache
 /.phpstan-tmp
+/.rector-tmp
 /.tools/

@@ -1,5 +1,5 @@
 <?php
-require_once "colors.php";
+require_once __DIR__ . '/../include/colors.php';
 
 class Feeds extends Handler_Protected {
 	/** special feed for archived articles */
@@ -47,13 +47,17 @@ class Feeds extends Handler_Protected {
 	const NEVER_GROUP_BY_DATE = [ Feeds::FEED_PUBLISHED, Feeds::FEED_STARRED, Feeds::FEED_FRESH ];
 
 	function csrf_ignore(string $method): bool {
-		$csrf_ignored = array("index");
-
-		return array_search($method, $csrf_ignored) !== false;
+		return $method === 'index';
 	}
 
 	/**
-	 * @return array{0: array<int, int>, 1: int, 2: int, 3: bool, 4: array<string, mixed>} $topmost_article_ids, $headlines_count, $feed, $disable_cache, $reply
+	 * @return array{
+	 *   0: array<int, int>,
+	 *   1: int,
+	 *   2: int,
+	 *   3: bool,
+	 *   4: array{content: string|array<string, mixed>, first_id: int, is_vfeed: bool, search_query: array{0: string, 1: string}, vfeed_group_enabled: bool, toolbar: array<string, mixed>}
+	 * } $topmost_article_ids, $headlines_count, $feed, $disable_cache, $reply
 	 */
 	private function _format_headlines_list(int|string $feed, string $method, string $view_mode, int $limit, bool $cat_view,
 					int $offset, string $override_order, bool $include_children, ?int $check_first_id = null,
@@ -80,7 +84,7 @@ class Feeds extends Handler_Protected {
 		}
 
 		if ($method_split[0] == "MarkAllReadGR")  {
-			$this->_catchup($method_split[1], false);
+			static::_catchup($method_split[1], false);
 		}
 
 		// FIXME: might break tag display?
@@ -108,7 +112,7 @@ class Feeds extends Handler_Protected {
 				PluginHost::feed_to_pfeed_id($feed));
 
 			if ($handler) {
-				$options = array(
+				$options = [
 					"limit" => $limit,
 					"view_mode" => $view_mode,
 					"cat_view" => $cat_view,
@@ -119,7 +123,7 @@ class Feeds extends Handler_Protected {
 					"filter" => false,
 					"since_id" => 0,
 					"include_children" => $include_children,
-					"order_by" => $order_by);
+					"order_by" => $order_by];
 
 				$qfh_ret = $handler->get_headlines(PluginHost::feed_to_pfeed_id($feed),
 					$options);
@@ -127,7 +131,7 @@ class Feeds extends Handler_Protected {
 
 		} else {
 
-			$params = array(
+			$params = [
 				"feed" => $feed,
 				"limit" => $limit,
 				"view_mode" => $view_mode,
@@ -140,9 +144,9 @@ class Feeds extends Handler_Protected {
 				"check_first_id" => $check_first_id,
 				"skip_first_id_check" => $skip_first_id_check,
                 "order_by" => $order_by
-			);
+			];
 
-			$qfh_ret = $this->_get_headlines($params);
+			$qfh_ret = static::_get_headlines($params);
 		}
 
 		$vfeed_group_enabled = Prefs::get(Prefs::VFEED_GROUP_BY_FEED, $_SESSION['uid'], $profile) &&
@@ -232,12 +236,8 @@ class Feeds extends Handler_Protected {
 					if ($label_cache) {
 						$label_cache = json_decode($label_cache, true);
 
-						if ($label_cache) {
-							if (($label_cache["no-labels"] ?? 0) == 1)
-								$labels = [];
-							else
-								$labels = $label_cache;
-						}
+						if ($label_cache)
+							$labels = ($label_cache['no-labels'] ?? 0) == 1 ? [] : $label_cache;
 					} else {
 						$labels = Article::_get_labels($id);
 					}
@@ -247,11 +247,10 @@ class Feeds extends Handler_Protected {
 					$line["labels"] = [];
 				}
 
-				if (count($topmost_article_ids) < 3) {
-					array_push($topmost_article_ids, $id);
-				}
+				if (count($topmost_article_ids) < 3)
+					$topmost_article_ids[] = $id;
 
-				$line["feed_title"] = $line["feed_title"] ?? "";
+				$line["feed_title"] ??= "";
 
 				$button_doc = new DOMDocument();
 
@@ -266,13 +265,13 @@ class Feeds extends Handler_Protected {
 							if ($child) {
 								do {
 									/** @var DOMElement|null $child */
-									$child->setAttribute('data-plugin-name', get_class($plugin));
+									$child->setAttribute('data-plugin-name', $plugin::class);
 								} while ($child = $child->nextSibling);
 
 								$line["buttons_left"] .= $button_doc->saveXML($button_doc->firstChild);
 							}
 						} else if ($result) {
-							user_error(get_class($plugin) .
+							user_error($plugin::class .
 								" plugin: content provided in HOOK_ARTICLE_LEFT_BUTTON is not valid XML: " .
 								Errors::libxml_last_error() . " $result", E_USER_WARNING);
 						}
@@ -291,13 +290,13 @@ class Feeds extends Handler_Protected {
 							if ($child) {
 								do {
 									/** @var DOMElement|null $child */
-									$child->setAttribute('data-plugin-name', get_class($plugin));
+									$child->setAttribute('data-plugin-name', $plugin::class);
 								} while ($child = $child->nextSibling);
 
 								$line["buttons"] .= $button_doc->saveXML($button_doc->firstChild);
 							}
 						} else if ($result) {
-							user_error(get_class($plugin) .
+							user_error($plugin::class .
 								" plugin: content provided in HOOK_ARTICLE_BUTTON is not valid XML: " .
 								Errors::libxml_last_error() . " $result", E_USER_WARNING);
 						}
@@ -332,21 +331,12 @@ class Feeds extends Handler_Protected {
 				$line['imported'] = T_sprintf("Imported at %s",
 					TimeHelper::make_local_datetime($line['date_entered']));
 
-				if ($line["tag_cache"])
-					$tags = explode(",", $line["tag_cache"]);
-				else
-					$tags = [];
-
-				$line["tags"] = $tags;
-
-				//$line["tags"] = Article::_get_tags($line["id"], false, $line["tag_cache"]);
+				$line['tags'] = $line['tag_cache'] ? explode(',', $line['tag_cache']) : [];
 
 				$line['has_icon'] = self::_has_icon($feed_id);
 
-			    //setting feed headline background color, needs to change text color based on dark/light
+				// setting feed headline background color, needs to change text color based on dark/light
 				$fav_color = $line['favicon_avg_color'] ?? false;
-
-				require_once "colors.php";
 
 				if (!isset($rgba_cache[$feed_id])) {
 					if ($fav_color && $fav_color != 'fail') {
@@ -356,9 +346,7 @@ class Feeds extends Handler_Protected {
 					}
 				}
 
-				if (isset($rgba_cache[$feed_id])) {
-				    $line['feed_bg_color'] = 'rgba(' . implode(",", $rgba_cache[$feed_id]) . ',0.3)';
-				}
+				$line['feed_bg_color'] = 'rgba(' . implode(',', $rgba_cache[$feed_id]) . ',0.3)';
 
 				PluginHost::getInstance()->chain_hooks_callback(PluginHost::HOOK_RENDER_ARTICLE_CDM,
 					function ($result, $plugin) use (&$line) {
@@ -374,7 +362,7 @@ class Feeds extends Handler_Protected {
 								"uuid", "label_cache", "yyiw", "num_enclosures"] as $k)
 					unset($line[$k]);
 
-				array_push($reply['content'], $line);
+				$reply['content'][] = $line;
 			}
 		}
 
@@ -396,9 +384,10 @@ class Feeds extends Handler_Protected {
 				}
 
 				if (!$offset && $message) {
-					$reply['content'] = "<div class='whiteBox'>$message";
-
-					$reply['content'] .= "<p><span class=\"text-muted\">";
+					// TODO: improve formatting of the error message (e.g. red text)
+					$reply['content'] = '<div class="whiteBox">'
+						. ($query_error_override ? ('<strong>'.$message.'</strong>') : $message)
+						. '<p><span class="text-muted">';
 
 					$sth = $this->pdo->prepare("SELECT SUBSTRING_FOR_DATE(MAX(last_updated), 1, 19) AS last_updated
 						FROM ttrss_feeds WHERE owner_uid = ?");
@@ -416,11 +405,10 @@ class Feeds extends Handler_Protected {
 						->count('id');
 
 					if ($num_errors > 0) {
-						$reply['content'] .= "<br/>";
-						$reply['content'] .= "<a class=\"text-muted\" href=\"#\" onclick=\"CommonDialogs.showFeedsWithErrors(); return false\">" .
-							__('Some feeds have update errors (click for details)') . "</a>";
+						$reply['content'] .= '<br/><a class="text-muted" href="#" onclick="CommonDialogs.showFeedsWithErrors(); return false">'
+							. __('Some feeds have update errors (click for details)') . '</a>';
 					}
-					$reply['content'] .= "</span></p></div>";
+					$reply['content'] .= '</span></p></div>';
 
 				}
 			} else if (is_numeric($result) && $result == -1) {
@@ -428,7 +416,7 @@ class Feeds extends Handler_Protected {
 			}
 		}
 
-		return array($topmost_article_ids, $headlines_count, $feed, $disable_cache, $reply);
+		return [$topmost_article_ids, $headlines_count, $feed, $disable_cache, $reply];
 	}
 
 	function catchupAll(): void {
@@ -436,13 +424,13 @@ class Feeds extends Handler_Protected {
 						last_read = NOW(), unread = false WHERE unread = true AND owner_uid = ?");
 		$sth->execute([$_SESSION['uid']]);
 
-		print json_encode(array("message" => "UPDATE_COUNTERS"));
+		print json_encode(["message" => "UPDATE_COUNTERS"]);
 	}
 
 	function view(): void {
 		$profile = $_SESSION['profile'] ?? null;
 
-		$reply = array();
+		$reply = [];
 
 		$feed = $_REQUEST["feed"];
 		$method = $_REQUEST["m"] ?? "";
@@ -504,7 +492,7 @@ class Feeds extends Handler_Protected {
 
 		$reply['headlines'] = [];
 
-		list($override_order, $skip_first_id_check) = self::_order_to_override_query($order_by);
+		[$override_order, $skip_first_id_check] = self::_order_to_override_query($order_by);
 
 		$ret = $this->_format_headlines_list($feed, $method,
 			$view_mode, $limit, $cat_view, $offset,
@@ -512,17 +500,15 @@ class Feeds extends Handler_Protected {
 
 		$headlines_count = $ret[1];
 		$disable_cache = $ret[3];
+
 		$reply['headlines'] = $ret[4];
-
-		if (!$next_unread_feed)
-			$reply['headlines']['id'] = $feed;
-		else
-			$reply['headlines']['id'] = $next_unread_feed;
-
+		$reply['headlines']['id'] = $next_unread_feed ?: $feed;
 		$reply['headlines']['is_cat'] = $cat_view;
 
-		$reply['headlines-info'] = ["count" => (int) $headlines_count,
-            						"disable_cache" => (bool) $disable_cache];
+		$reply['headlines-info'] = [
+			'count' => (int) $headlines_count,
+			'disable_cache' => (bool) $disable_cache,
+		];
 
 		// this is parsed by handleRpcJson() on first viewfeed() to set cdm expanded, etc
 		$reply['runtime-info'] = RPC::_make_runtime_info();
@@ -540,19 +526,19 @@ class Feeds extends Handler_Protected {
 	 * @return array<string, mixed>
 	 */
 	private function _generate_error_feed(string $error): array {
-		$reply = array();
-
-		$reply['headlines']['id'] = Feeds::FEED_ERROR;
-		$reply['headlines']['is_cat'] = false;
-
-		$reply['headlines']['toolbar'] = '';
-		$reply['headlines']['content'] = "<div class='whiteBox'>". $error . "</div>";
-
-		$reply['headlines-info'] = array("count" => 0,
-			"unread" => 0,
-			"disable_cache" => true);
-
-		return $reply;
+		return [
+			'headlines' => [
+				'id' => Feeds::FEED_ERROR,
+				'is_cat' => false,
+				'toolbar' => '',
+				'content' => '<div class="whiteBox">'. $error . '</div>',
+			],
+			'headlines-info' => [
+				'count' => 0,
+				'unread' => 0,
+				'disable_cache' => true,
+			]
+		];
 	}
 
 	function subscribeToFeed(): void {
@@ -677,7 +663,7 @@ class Feeds extends Handler_Protected {
 		</script>
 
 			<div class="container">
-				<h1>Feed Debugger: <?= "$feed_id: " . $this->_get_title($feed_id, $_SESSION['uid']) ?></h1>
+				<h1>Feed Debugger: <?= "$feed_id: " . static::_get_title($feed_id, $_SESSION['uid']) ?></h1>
 				<div class="content">
 					<form method="post" action="" dojoType="dijit.form.Form">
 						<?= \Controls\hidden_tag("op", "Feeds") ?>
@@ -740,7 +726,7 @@ class Feeds extends Handler_Protected {
 			PluginHost::getInstance()->chain_hooks_callback(PluginHost::HOOK_SEARCH,
 				function ($result) use (&$search_qpart, &$search_words) {
 					if (!empty($result)) {
-						list($search_qpart, $search_words) = $result;
+						[$search_qpart, $search_words] = $result;
 						return true;
 					}
 				},
@@ -748,7 +734,7 @@ class Feeds extends Handler_Protected {
 
 			// fall back in case of no plugins
 			if (empty($search_qpart)) {
-				list($search_qpart, $search_words) = self::_search_to_sql($search[0], $search[1], $owner_uid, $profile);
+				[$search_qpart, $search_words] = self::_search_to_sql($search[0], $search[1], $owner_uid, $profile);
 			}
 		} else {
 			$search_qpart = "true";
@@ -769,11 +755,8 @@ class Feeds extends Handler_Protected {
 					if ($feed_id == Feeds::CATEGORY_UNCATEGORIZED) {
 						$cat_qpart = "cat_id IS NULL";
 					} else {
-						$children = self::_get_child_cats($feed_id, $owner_uid);
-						array_push($children, $feed_id);
-						$children = array_map("intval", $children);
-
-						$children = join(",", $children);
+						$children = implode(',',
+							array_map(intval(...), [...self::_get_child_cats($feed_id, $owner_uid), $feed_id]));
 
 						$cat_qpart = "cat_id IN ($children)";
 					}
@@ -883,11 +866,7 @@ class Feeds extends Handler_Protected {
 		if (!$owner_uid) $owner_uid = $_SESSION["uid"];
 		$profile = isset($_SESSION['uid']) && $owner_uid == $_SESSION['uid'] && isset($_SESSION['profile']) ? $_SESSION['profile'] : null;
 
-		if ($unread_only) {
-			$unread_qpart = "unread = true";
-		} else {
-			$unread_qpart = "true";
-		}
+		$unread_qpart = $unread_only ? 'unread = true' : 'true';
 
 		$match_part = "";
 
@@ -926,18 +905,9 @@ class Feeds extends Handler_Protected {
 		} else if ($n_feed == Feeds::FEED_ALL) {
 			$match_part = "true";
 		} else if ($n_feed >= 0) {
-
-			if ($n_feed != Feeds::FEED_ARCHIVED) {
-				$match_part = sprintf("feed_id = %d", $n_feed);
-			} else {
-				$match_part = "feed_id IS NULL";
-			}
-
+			$match_part = $n_feed === Feeds::FEED_ARCHIVED ? 'feed_id IS NULL' : sprintf('feed_id = %d', $n_feed);
 		} else if ($feed < LABEL_BASE_INDEX) {
-
-			$label_id = Labels::feed_to_label_id($feed);
-
-			return self::_get_label_unread($label_id, $owner_uid);
+			return self::_get_label_unread(Labels::feed_to_label_id($feed), $owner_uid);
 		}
 
 		if ($match_part) {
@@ -982,7 +952,7 @@ class Feeds extends Handler_Protected {
 
 		$rc = Feeds::_subscribe($feed, $cat, $login, $pass, $update_interval);
 
-		print json_encode(array("result" => $rc));
+		print json_encode(["result" => $rc]);
 	}
 
 	/**
@@ -1042,7 +1012,7 @@ class Feeds extends Handler_Protected {
 			Logger::log(E_USER_NOTICE, "An attempt to subscribe to '{$url}' failed (User: '{$user->login}'; ID: {$user->id}).",
 				truncate_string(UrlHelper::$fetch_last_error, 500, '…'));
 
-			return array("code" => 5, "message" => truncate_string(clean(UrlHelper::$fetch_last_error), 250, '…'));
+			return ["code" => 5, "message" => truncate_string(clean(UrlHelper::$fetch_last_error), 250, '…')];
 		}
 
 		if (str_contains(UrlHelper::$fetch_last_content_type, "html") && self::_is_html($contents)) {
@@ -1052,9 +1022,9 @@ class Feeds extends Handler_Protected {
 				Logger::log(E_USER_NOTICE, "An attempt to subscribe to '{$url}' failed due to content being HTML without detected feed URLs (User: '{$user->login}'; ID: {$user->id}).",
 					truncate_string($contents, 500, '…'));
 
-				return array("code" => 3, "message" => truncate_string(clean($contents), 250, '…'));
+				return ["code" => 3, "message" => truncate_string(clean($contents), 250, '…')];
 			} else if (count($feedUrls) > 1) {
-				return array("code" => 4, "feeds" => $feedUrls);
+				return ["code" => 4, "feeds" => $feedUrls];
 			}
 			//use feed url as new URL
 			$url = key($feedUrls);
@@ -1062,7 +1032,9 @@ class Feeds extends Handler_Protected {
 
 		// Don't allow subscribing if the content is invalid
 		$fp = new FeedParser($contents);
-		if ($fp->error() || $fp->get_type() === FeedParser::FEED_UNKNOWN)
+		if ($fp->error())
+			return ['code' => 6, 'message' => truncate_string(clean($fp->error()), 250, '…')];
+		if ($fp->get_type() === FeedParser::FEED_UNKNOWN)
 			return ['code' => 6, 'message' => truncate_string(clean($contents), 250, '…')];
 
 		$feed = ORM::for_table('ttrss_feeds')
@@ -1079,7 +1051,7 @@ class Feeds extends Handler_Protected {
 				'owner_uid' => $_SESSION['uid'],
 				'feed_url' => $url,
 				'title' => "[Unknown]",
-				'cat_id' => $cat_id ? $cat_id : null,
+				'cat_id' => $cat_id ?: null,
 				'auth_login' => (string)$auth_login,
 				'auth_pass' => (string)$auth_pass,
 				'update_method' => 0,
@@ -1145,11 +1117,7 @@ class Feeds extends Handler_Protected {
 			->where('feed_url', $feed_url)
 			->find_one();
 
-		if ($feed) {
-			return $feed->id;
-		} else {
-			return false;
-		}
+		return $feed ? $feed->id : false;
 	}
 
 	/**
@@ -1161,21 +1129,17 @@ class Feeds extends Handler_Protected {
 
 		if ($cat) {
 			$res = ORM::for_table('ttrss_feed_categories')
-				->where('owner_uid', $owner_uid ? $owner_uid : $_SESSION['uid'])
+				->where('owner_uid', $owner_uid ?: $_SESSION['uid'])
 				->where('title', $title)
 				->find_one();
 		} else {
 			$res = ORM::for_table('ttrss_feeds')
-				->where('owner_uid', $owner_uid ? $owner_uid : $_SESSION['uid'])
+				->where('owner_uid', $owner_uid ?: $_SESSION['uid'])
 				->where('title', $title)
 				->find_one();
 		}
 
-		if ($res) {
-			return $res->id;
-		} else {
-			return false;
-		}
+		return $res ? $res->id : false;
 	}
 
 	static function _get_title(int|string $id, int $owner_uid, bool $cat = false): string {
@@ -1234,7 +1198,7 @@ class Feeds extends Handler_Protected {
 					AND owner_uid = :uid)
 				AND owner_uid = :uid");
 
-			$sth->execute(["cat" => $cat ? $cat : null, "uid" => $owner_uid]);
+			$sth->execute(["cat" => $cat ?: null, "uid" => $owner_uid]);
 
 			if ($row = $sth->fetch()) {
 				return (int) $row["marked"];
@@ -1259,7 +1223,7 @@ class Feeds extends Handler_Protected {
 						AND owner_uid = :uid)
 					AND owner_uid = :uid");
 
-				$sth->execute(["cat" => $cat ? $cat : null, "uid" => $owner_uid]);
+				$sth->execute(["cat" => $cat ?: null, "uid" => $owner_uid]);
 
 				if ($row = $sth->fetch()) {
 					return (int) $row["marked"];
@@ -1283,7 +1247,7 @@ class Feeds extends Handler_Protected {
 					AND owner_uid = :uid)
 				AND owner_uid = :uid");
 
-			$sth->execute(["cat" => $cat ? $cat : null, "uid" => $owner_uid]);
+			$sth->execute(["cat" => $cat ?: null, "uid" => $owner_uid]);
 
 			if ($row = $sth->fetch()) {
 				return (int) $row["unread"];
@@ -1356,34 +1320,34 @@ class Feeds extends Handler_Protected {
 					->where('owner_uid', $owner_uid)
 					->find_one($cat_id);
 
-				if ($cat) {
-					return $cat->title;
-				} else {
-					return "UNKNOWN";
-				}
+				return $cat ? $cat->title : 'UNKNOWN';
 		}
 	}
 
 	private static function _get_label_unread(int $label_id, ?int $owner_uid = null): int {
-		if (!$owner_uid) $owner_uid = $_SESSION["uid"];
+		if (!$owner_uid)
+			$owner_uid = $_SESSION['uid'];
 
-		$pdo = Db::pdo();
-
-		$sth = $pdo->prepare("SELECT COUNT(ref_id) AS unread FROM ttrss_user_entries, ttrss_user_labels2
-			WHERE owner_uid = ? AND unread = true AND label_id = ? AND article_id = ref_id");
-
-		$sth->execute([$owner_uid, $label_id]);
-
-		if ($row = $sth->fetch()) {
-			return $row["unread"];
-		} else {
-			return 0;
-		}
+		return ORM::for_table('ttrss_user_entries')
+			->table_alias('ue')
+			->join('ttrss_user_labels2', ['ul2.article_id', '=', 'ue.ref_id'], 'ul2')
+			->where(['ue.unread' => 'true', 'ue.owner_uid' => $owner_uid, 'ul2.label_id' => $label_id])
+			->count();
 	}
 
 	/**
 	 * @param array<string, mixed> $params
-	 * @return array<int, mixed> $result, $feed_title, $feed_site_url, $last_error, $last_updated, $highlight_words, $first_id, $is_vfeed, $query_error_override
+	 * @return array{
+	 *   0: PDOStatement|false|-1,
+	 *   1: string,
+	 *   2: string,
+	 *   3: string,
+	 *   4: string,
+	 *   5: array<string>,
+	 *   6: int,
+	 *   7: bool,
+	 *   8: string
+	 * } $result, $feed_title, $feed_site_url, $last_error, $last_updated, $highlight_words, $first_id, $is_vfeed, $query_error_override
 	 */
 	static function _get_headlines($params): array {
 		$pdo = Db::pdo();
@@ -1423,7 +1387,7 @@ class Feeds extends Handler_Protected {
 			PluginHost::getInstance()->chain_hooks_callback(PluginHost::HOOK_SEARCH,
 				function ($result) use (&$search_query_part, &$search_words) {
 					if (!empty($result)) {
-						list($search_query_part, $search_words) = $result;
+						[$search_query_part, $search_words] = $result;
 						return true;
 					}
 				},
@@ -1431,7 +1395,7 @@ class Feeds extends Handler_Protected {
 
 			// fall back in case of no plugins
 			if (!$search_query_part) {
-				list($search_query_part, $search_words) = self::_search_to_sql($search, $search_language, $owner_uid, $profile);
+				[$search_query_part, $search_words] = self::_search_to_sql($search, $search_language, $owner_uid, $profile);
 			}
 
 			$test_sth = $pdo->prepare("select $search_query_part
@@ -1439,7 +1403,7 @@ class Feeds extends Handler_Protected {
 
 			try {
 				$test_sth->execute();
-			} catch (PDOException $e) {
+			} catch (PDOException) {
 				// looks like tsquery syntax is invalid
 				$search_query_part = "false";
 
@@ -1451,11 +1415,7 @@ class Feeds extends Handler_Protected {
 			$search_query_part = "";
 		}
 
-		if ($since_id) {
-			$since_id_part = "ttrss_entries.id > ".$pdo->quote($since_id)." AND ";
-		} else {
-			$since_id_part = "";
-		}
+		$since_id_part = $since_id ? ('ttrss_entries.id > ' . $pdo->quote($since_id) . ' AND ') : '';
 
 		$view_query_part = "";
 
@@ -1476,25 +1436,16 @@ class Feeds extends Handler_Protected {
 			}
 		}
 
-		if ($view_mode == "marked") {
-			$view_query_part = " marked = true AND ";
-		}
+		$view_query_part = match (true) {
+			$view_mode == 'marked' => ' marked = true AND ',
+			$view_mode == 'has_note' => " (note IS NOT NULL AND note != '') AND ",
+			$view_mode == 'published' => ' published = true AND ',
+			$view_mode == 'unread' && $feed != Feeds::FEED_RECENTLY_READ => ' unread = true AND ',
+			default => $view_query_part,
+		};
 
-		if ($view_mode == "has_note") {
-			$view_query_part = " (note IS NOT NULL AND note != '') AND ";
-		}
-
-		if ($view_mode == "published") {
-			$view_query_part = " published = true AND ";
-		}
-
-		if ($view_mode == "unread" && $feed != Feeds::FEED_RECENTLY_READ) {
-			$view_query_part = " unread = true AND ";
-		}
-
-		if ($limit > 0) {
-			$limit_query_part = "LIMIT " . (int)$limit;
-		}
+		if ($limit > 0)
+			$limit_query_part = 'LIMIT ' . (int) $limit;
 
 		$allow_archived = false;
 
@@ -1512,12 +1463,10 @@ class Feeds extends Handler_Protected {
 				if ($feed > 0) {
 					if ($include_children) {
 						# sub-cats
-						$subcats = self::_get_child_cats($feed, $owner_uid);
-						array_push($subcats, $feed);
-						$subcats = array_map("intval", $subcats);
+						$subcats = implode(',',
+							array_map(intval(...), [...self::_get_child_cats($feed, $owner_uid), $feed]));
 
-						$query_strategy_part = "cat_id IN (".
-							implode(",", $subcats).")";
+						$query_strategy_part = "cat_id IN ($subcats)";
 
 					} else {
 						$query_strategy_part = "cat_id = " . $pdo->quote((string)$feed);
@@ -1568,8 +1517,10 @@ class Feeds extends Handler_Protected {
 
 			}
 		} else if ($feed == Feeds::FEED_RECENTLY_READ) { // recently read
+			$intl = (int) Prefs::get(Prefs::RECENTLY_READ_MAX_AGE, $owner_uid, $profile);
+
 			$query_strategy_part = "unread = false AND last_read IS NOT NULL AND
-				last_read > NOW() - INTERVAL '1 day'";
+				last_read > NOW() - INTERVAL '$intl hour'";
 
 			$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
 			$allow_archived = true;
@@ -1645,18 +1596,9 @@ class Feeds extends Handler_Protected {
 
 		$content_query_part = "content, ";
 
-		if ($limit_query_part) {
-			$offset_query_part = "OFFSET " . (int)$offset;
-		} else {
-			$offset_query_part = "";
-		}
+		$offset_query_part = $limit_query_part ? ('OFFSET ' . (int) $offset) : '';
 
-		if ($start_ts) {
-			$start_ts_formatted = date("Y/m/d H:i:s", strtotime($start_ts));
-			$start_ts_query_part = "date_entered >= '$start_ts_formatted' AND";
-		} else {
-			$start_ts_query_part = "";
-		}
+		$start_ts_query_part = $start_ts ? "date_entered >= '" . date('Y/m/d H:i:s', strtotime($start_ts)) . "' AND " : '';
 
 		$first_id = 0;
 
@@ -1674,11 +1616,7 @@ class Feeds extends Handler_Protected {
 					$yyiw_order_qpart = "";
 				}
 
-				if (!$override_order) {
-					$order_by = "$yyiw_order_qpart ttrss_feeds.title, $order_by";
-				} else {
-					$order_by = "$yyiw_order_qpart ttrss_feeds.title, $override_order";
-				}
+				$order_by = "$yyiw_order_qpart ttrss_feeds.title, " . ($override_order ?: $order_by);
 			}
 
 			if (!$allow_archived) {
@@ -1744,7 +1682,7 @@ class Feeds extends Handler_Protected {
 					$first_id = (int)$row["id"];
 
 					if ($offset > 0 && $first_id && $check_first_id && $first_id != $check_first_id) {
-						return array(-1, $feed_title, $feed_site_url, $last_error, $last_updated, $search_words, $first_id, $vfeed_query_part != "", $query_error_override);
+						return [-1, $feed_title, $feed_site_url, $last_error, $last_updated, $search_words, $first_id, $vfeed_query_part != "", $query_error_override];
 					}
 				}
 			}
@@ -1853,23 +1791,23 @@ class Feeds extends Handler_Protected {
 			$res = $pdo->query($query);
 		}
 
-		return array($res, $feed_title, $feed_site_url, $last_error, $last_updated, $search_words, $first_id, $vfeed_query_part != "", $query_error_override);
+		return [$res, $feed_title, $feed_site_url, $last_error, $last_updated, $search_words, $first_id, $vfeed_query_part != "", $query_error_override];
 	}
 
 	/**
 	 * @return array<int, int>
 	 */
 	static function _get_parent_cats(int $cat, int $owner_uid): array {
-		$rv = array();
+		$rv = [];
 
-		$pdo = Db::pdo();
+		$feed_cats = ORM::for_table('ttrss_feed_categories')
+			->select('parent_cat')
+			->where(['id' => $cat, 'owner_uid' => $owner_uid])
+			->where_not_null('parent_cat')
+			->find_many();
 
-		$sth = $pdo->prepare("SELECT parent_cat FROM ttrss_feed_categories
-			WHERE id = ? AND parent_cat IS NOT NULL AND owner_uid = ?");
-		$sth->execute([$cat, $owner_uid]);
-
-		while ($line = $sth->fetch()) {
-			$cat = (int) $line["parent_cat"];
+		foreach ($feed_cats as $feed_cat) {
+			$cat = (int) $feed_cat->parent_cat;
 			array_push($rv, $cat, ...self::_get_parent_cats($cat, $owner_uid));
 		}
 
@@ -1880,17 +1818,15 @@ class Feeds extends Handler_Protected {
 	 * @return array<int, int>
 	 */
 	static function _get_child_cats(int $cat, int $owner_uid): array {
-		$rv = array();
+		$rv = [];
 
-		$pdo = Db::pdo();
+		$feed_cats = ORM::for_table('ttrss_feed_categories')
+			->select('id')
+			->where(['parent_cat' => $cat, 'owner_uid' => $owner_uid])
+			->find_many();
 
-		$sth = $pdo->prepare("SELECT id FROM ttrss_feed_categories
-			WHERE parent_cat = ? AND owner_uid = ?");
-		$sth->execute([$cat, $owner_uid]);
-
-		while ($line = $sth->fetch()) {
-			array_push($rv, $line["id"], ...self::_get_child_cats($line["id"], $owner_uid));
-		}
+		foreach ($feed_cats as $feed_cat)
+			array_push($rv, $feed_cat->id, ...self::_get_child_cats($feed_cat->id, $owner_uid));
 
 		return $rv;
 	}
@@ -1915,9 +1851,8 @@ class Feeds extends Handler_Protected {
 		$rv = [];
 
 		if ($row = $sth->fetch()) {
-			$cat_id = (int) $row["cat_id"];
+			$cat_id = (int) $row['cat_id'];
 			$rv[] = $cat_id;
-			array_push($rv, (int)$row["cat_id"]);
 
 			if ($with_parents && $row["parent_cat"]) {
 				array_push($rv, ...self::_get_parent_cats($cat_id, $owner_uid));
@@ -1930,14 +1865,9 @@ class Feeds extends Handler_Protected {
 	}
 
 	// returns Uncategorized as 0
-	static function _cat_of(int $feed) : int {
-		$feed = ORM::for_table('ttrss_feeds')->find_one($feed);
-
-		if ($feed) {
-			return (int)$feed->cat_id;
-		} else {
-			return -1;
-		}
+	static function _cat_of(int $feed): int {
+		$feed = ORM::for_table('ttrss_feeds')->select('cat_id')->find_one($feed);
+		return $feed ? (int) $feed->cat_id : -1;
 	}
 
 	private function _color_of(string $name): string {
@@ -1974,10 +1904,7 @@ class Feeds extends Handler_Protected {
 			/** @var DOMElement|null $entry */
 			foreach ($entries as $entry) {
 				if ($entry->hasAttribute('href')) {
-					$title = $entry->getAttribute('title');
-					if ($title == '') {
-						$title = $entry->getAttribute('type');
-					}
+					$title = $entry->getAttribute('title') ?: $entry->getAttribute('type');
 					$feedUrl = UrlHelper::rewrite_relative($baseUrl, $entry->getAttribute('href'));
 					$feedUrls[$feedUrl] = $title;
 				}
@@ -2002,9 +1929,7 @@ class Feeds extends Handler_Protected {
 	static function _add_cat(string $title, int $owner_uid, ?int $parent_cat = null, int $order_id = 0): bool {
 
 		$cat = ORM::for_table('ttrss_feed_categories')
-			->where('owner_uid', $owner_uid)
-			->where('parent_cat', $parent_cat)
-			->where('title', $title)
+			->where(['owner_uid' => $owner_uid, 'parent_cat' => $parent_cat, 'title' => $title])
 			->find_one();
 
 		if (!$cat) {
@@ -2036,9 +1961,7 @@ class Feeds extends Handler_Protected {
 	 */
 	static function _update_access_key(string $feed_id, bool $is_cat, int $owner_uid): ?string {
 		ORM::for_table('ttrss_access_keys')
-			->where('owner_uid', $owner_uid)
-			->where('feed_id', $feed_id)
-			->where('is_cat', $is_cat)
+			->where(['owner_uid' => $owner_uid, 'feed_id' => $feed_id, 'is_cat' => $is_cat])
 			->delete_many();
 
 		return self::_get_access_key($feed_id, $is_cat, $owner_uid);
@@ -2051,9 +1974,7 @@ class Feeds extends Handler_Protected {
 	 */
 	static function _get_access_key(string $feed_id, bool $is_cat, int $owner_uid): ?string {
 		$key = ORM::for_table('ttrss_access_keys')
-			->where('owner_uid', $owner_uid)
-			->where('feed_id', $feed_id)
-			->where('is_cat', $is_cat)
+			->where(['owner_uid' => $owner_uid, 'feed_id' => $feed_id, 'is_cat' => $is_cat])
 			->find_one();
 
 		if ($key) {
@@ -2105,10 +2026,7 @@ class Feeds extends Handler_Protected {
 				return null;
 			}
 
-			if (!$purge_unread)
-				$query_limit = " unread = false AND ";
-			else
-				$query_limit = "";
+			$query_limit = $purge_unread ? '' : ' unread = false AND ';
 
 			$sth = $pdo->prepare("DELETE FROM ttrss_user_entries
 				USING ttrss_entries
@@ -2131,211 +2049,294 @@ class Feeds extends Handler_Protected {
 	}
 
 	private static function _get_purge_interval(int $feed_id): int {
-		$feed = ORM::for_table('ttrss_feeds')->find_one($feed_id);
+		$feed = ORM::for_table('ttrss_feeds')
+			->select_many('purge_interval', 'owner_uid')
+			->find_one($feed_id);
 
-		if ($feed) {
-			if ($feed->purge_interval != 0)
-				return $feed->purge_interval;
-			else
-				return Prefs::get(Prefs::PURGE_OLD_DAYS, $feed->owner_uid);
-		} else {
+		if ($feed)
+			return $feed->purge_interval != 0 ? $feed->purge_interval : Prefs::get(Prefs::PURGE_OLD_DAYS, $feed->owner_uid);
+		else
 			return -1;
-		}
 	}
 
 	/**
 	 * @return array{0: string, 1: array<int, string>} [$search_query_part, $search_words]
 	 */
 	private static function _search_to_sql(string $search, string $search_language, int $owner_uid, ?int $profile): array {
-		// Modify the search string so that 'keyword:"foo bar"' becomes '"keyword:foo bar"'.
-		// This is needed so potential command pairs are grouped correctly.
-		$search_csv_str = preg_replace('/(-?\w+)\:"(\w+)/', '"$1:$2', trim($search));
+		/**
+		 * A Search Query contains one or several Keyword(s).
+		 * Keywords containing spaces must be surrounded by quotes (").
+		 * Keywords can be negated by preceding them with the '-' character. No space
+		 * is allowed after the '-'.
+		 * Keywords can be (note: the character '_' is used as a surrounding tag because
+		 * surrounding with quotes may be confusing):
+		 *  - a specific _key:value_ pair supported by tt-rss.
+		 *  - a specific _@date_ value supported by tt-rss, provided by DateTime class
+		 *    such as _@yesterday_ or _"@last Monday"_ or a date.
+		 *  - a tsquery of PostgreSQL Full Text Search: a string, but also operators
+		 *    such as '&', '|', '!' and parenthesis.
+		 *  - a list of words between quotes, such as _"one two three"_, which is handled
+		 *    via PostgreSQL Full Text Search operator '<->' as a list of consecutive words.
+		 * Known issue: Logical operators & | ! and parenthesis are only partially supported
+		 * in a tsquery. For example _pub:true | (title:price & ! "hello")_ does not work.
+		 */
 
-		// '-"hello world"' --> '"-hello world"' so negated phrases work
-		$search_csv_str = preg_replace('/-"([^"]+?")/', '"-$1', $search_csv_str);
+		/**
+		 * Modify the Search Query so that:
+		 *  _keyword:"foo bar"_ becomes _"keyword:foo bar"_
+		 *  _-"hello world"_ becomes _"-hello world"_
+		 *  _@"last Tuesday"_ becomes _"@last Tuesday"_
+		 * This is needed so potential command pairs are grouped correctly.
+		 */
+		$search_csv_str = preg_replace('/(-?\w+):"([^"]+?)"/', '"$1:$2"', trim($search));
+		$search_csv_str = preg_replace('/-"([^"]+?)"/', '"-$1"', $search_csv_str);
+		$search_csv_str = preg_replace('/(-?\@)"([^"]+?)"/', '"$1$2"', $search_csv_str);
 
-		// $keywords will be an array like ['"title:hello world"', 'some', 'words']
+		/**
+		 * If the Search String is _"title:hello world" some -words_, then
+		 * $keywords will be an array like ['title:hello world', 'some', '-words']
+		 * Known issue: we suppose the user has correctly formatted the Query String,
+		 * with quote paired in the good place. Otherwise, there is no warning.
+		 */
 		$keywords = str_getcsv($search_csv_str, ' ', '"', '');
 
-		$query_keywords = array();
-		$search_words = array();
-		$search_query_leftover = array();
+		$query_keywords = [];
+		$search_words = [];
+		$search_query_leftover = [];
 
 		$pdo = Db::pdo();
 
 		/** @var string $k a keyword pair (not yet split) or standalone value */
 		foreach ($keywords as $k) {
-			if (str_starts_with($k, "-")) {
+			if (str_starts_with($k, '-')) {
 				$k = substr($k, 1);
-				$not = "NOT";
+				$not = 'NOT';
 			} else {
-				$not = "";
+				$not = '';
 			}
 
-			$k = trim($k);
+			// Only a left trim, so spaces are kept in the value part of keyword
+			// pairs. They are needed for precise searches in title/author/note.
+			$k = ltrim($k);
 
-			$keyword_pair = explode(':', mb_strtolower($k), 2);
-			$keyword_name = $keyword_pair[0];
-			$keyword_value = empty($keyword_pair[1]) ? '' : trim($keyword_pair[1]);
+			// In the three Keyword types, uppercase is never required. So convert
+			// only once, globally.
+			$k = mb_strtolower($k);
 
-			// NOTE: If there's a keyword match but no keyword value we fall back to doing
-			// a search in article title and content.
-			switch ($keyword_name) {
-				case "title":
-					if ($keyword_value) {
-						array_push($query_keywords, "($not (LOWER(ttrss_entries.title) LIKE ".
-							$pdo->quote("%{$keyword_value}%") ."))");
-					} else {
-						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
-						array_push($search_words, $k);
-					}
-					break;
-				case "author":
-					if ($keyword_value) {
-						array_push($query_keywords, "($not (LOWER(author) LIKE ".
-							$pdo->quote("%{$keyword_value}%")."))");
-					} else {
-						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
-						array_push($search_words, $k);
-					}
-					break;
-				case "note":
-					if ($keyword_value) {
-						if ($keyword_value == "true")
-							array_push($query_keywords, "($not (note IS NOT NULL AND note != ''))");
-						else if ($keyword_value == "false")
-							array_push($query_keywords, "($not (note IS NULL OR note = ''))");
-						else
-							array_push($query_keywords, "($not (LOWER(note) LIKE ".
-								$pdo->quote("%{$keyword_value}%")."))");
-					} else {
-						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
-						if (!$not) array_push($search_words, $k);
-					}
-					break;
-				case "star":
-					if ($keyword_value) {
-						if ($keyword_value == "true")
-							array_push($query_keywords, "($not (marked = true))");
-						else
-							array_push($query_keywords, "($not (marked = false))");
-					} else {
-						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
-						if (!$not) array_push($search_words, $k);
-					}
-					break;
-				case "pub":
-					if ($keyword_value) {
-						if ($keyword_value == "true")
-							array_push($query_keywords, "($not (published = true))");
-						else
-							array_push($query_keywords, "($not (published = false))");
-					} else {
-						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
-						if (!$not) array_push($search_words, $k);
-					}
-					break;
-				case "label":
-					if ($keyword_value) {
-						$label_id = Labels::find_id($keyword_value, $owner_uid);
+			$valid_keyword_processed = false;
 
-						if ($label_id) {
-							array_push($query_keywords, "($not
-								(ttrss_entries.id IN (
-									SELECT article_id FROM ttrss_user_labels2 WHERE
-										label_id = $label_id)))");
+			/**
+			 * First, try to process a specific _key:value_ pair supported by tt-rss.
+			 * NOTE: If there's a keyword match but no keyword value, or an unsupported
+			 * value, we fall back to doing a Full Text Search.
+			 * NOTE: The separator ':' is also a valid Full Text Search separator,
+			 * such as _secu:*_ which matches all words starting by "secu". Here, we
+			 * only process tt-rss keyword pairs, not PostgreSQL pairs.
+			 */
+			$keyword_pair = explode(':', $k, 2);
+			if (!empty($keyword_pair[1])) {
+				$keyword_name = $keyword_pair[0];
+				$keyword_value_untrimmed = $keyword_pair[1];
+				$keyword_value = trim($keyword_value_untrimmed);
+
+				switch ($keyword_name) {
+					case 'title':
+						// Use the untrimmed value, so a Search Query containing spaces like
+						// _title:" be "_ matches only " be " and not "cyBErspace".
+						$query_keywords[] = "($not (LOWER(ttrss_entries.title) LIKE " .
+							$pdo->quote("%{$keyword_value_untrimmed}%") . '))';
+						$valid_keyword_processed = true;
+						break;
+					case 'author':
+						$query_keywords[] = "($not (LOWER(author) LIKE " . $pdo->quote("%{$keyword_value_untrimmed}%") . '))';
+						$valid_keyword_processed = true;
+						break;
+					case 'note':
+						if ($keyword_value == 'true')
+							$query_keywords[] = "($not (note IS NOT NULL AND note != ''))";
+						else if ($keyword_value == 'false')
+							$query_keywords[] = "($not (note IS NULL OR note = ''))";
+						else
+							$query_keywords[] = "($not (LOWER(COALESCE(note, '')) LIKE " . $pdo->quote("%{$keyword_value_untrimmed}%") . '))';
+						$valid_keyword_processed = true;
+						break;
+					case 'star':
+						if ($keyword_value == 'true') {
+							$query_keywords[] = "($not (marked = true))";
+							$valid_keyword_processed = true;
+						} else if ($keyword_value == 'false') {
+							$query_keywords[] = "($not (marked = false))";
+							$valid_keyword_processed = true;
 						} else {
-							array_push($query_keywords, "(false)");
+							/**
+							 * Not valid, so fall back to Full Text Search. As _star:something_
+							 * is not valid for a tsquery (because ':' is also a special separator
+							 * in PostgreSQL tsquery), the $test_sth->execute() will fail, and
+							 * the warning "Incorrect search syntax: star:something" will be
+							 * displayed. This is not perfect, but at least, there is a warning.
+							 */
 						}
-					} else {
-						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
-						if (!$not) array_push($search_words, $k);
+						break;
+					case 'pub':
+						if ($keyword_value == 'true') {
+							$query_keywords[] = "($not (published = true))";
+							$valid_keyword_processed = true;
+						} else if ($keyword_value == 'false') {
+							$query_keywords[] = "($not (published = false))";
+							$valid_keyword_processed = true;
+						} else {
+							// Not valid, so fall back to Full Text Search. A message will be
+							// displayed as above.
+						}
+						break;
+					case 'unread':
+						if ($keyword_value == 'true') {
+							$query_keywords[] = "($not (unread = true))";
+							$valid_keyword_processed = true;
+						} else if ($keyword_value == 'false') {
+							$query_keywords[] = "($not (unread = false))";
+							$valid_keyword_processed = true;
+						} else {
+							// Not valid, so fall back to Full Text Search. A message will be
+							// displayed as above.
+						}
+						break;
+					case 'label':
+						$sql_start = '(ttrss_entries.id ' . $not . ' IN (SELECT article_id FROM ttrss_user_labels2';
+						$sql_end = '))';
+						if ($keyword_value == 'true') {
+							$query_keywords[] = $sql_start . $sql_end;
+						} else if ($keyword_value == 'false') {
+							$query_keywords[] = '(NOT ' . $sql_start . $sql_end . ')';
+						} else {
+							$label_id = Labels::find_id($keyword_value, $owner_uid);
+							if ($label_id) {
+								$query_keywords[] = $sql_start . ' WHERE label_id = ' . $label_id . $sql_end;
+							} else {
+								$query_keywords[] = ($not ? '(true)' : '(false)');
+							}
+						}
+						$valid_keyword_processed = true;
+						break;
+					case 'tag':
+						$sql_start = '(ttrss_user_entries.int_id ' . $not . ' IN (SELECT post_int_id FROM ttrss_tags';
+						$sql_end = '))';
+						if ($keyword_value == 'true') {
+							$query_keywords[] = $sql_start . $sql_end;
+						} else if ($keyword_value == 'false') {
+							$query_keywords[] = '(NOT ' . $sql_start . $sql_end . ')';
+						} else {
+							$query_keywords[] = $sql_start . ' WHERE tag_name = ' . $pdo->quote($keyword_value) . $sql_end;
+						}
+						$valid_keyword_processed = true;
+						break;
+					default:
+						/**
+						 * Not valid, so fall back to Full Text Search. This is perhaps the
+						 * special _secu:*_ syntax presented above. Unless it is a valid
+						 * Full Text Search suffix like '*', a message will be displayed
+						 * as above.
+						 */
+				}
+			}
+
+			// Second, try to process a specific _@date_ value supported by tt-rss.
+			if (!$valid_keyword_processed) {
+				if (str_starts_with($k, '@')) {
+					try {
+						$tz = new DateTimeZone(Prefs::get(Prefs::USER_TIMEZONE, $owner_uid));
+					} catch (Exception) {
+					 	$tz = new DateTimeZone('UTC');
 					}
-					break;
-				case "tag":
-					if ($keyword_value) {
-							array_push($query_keywords, "($not
-								(ttrss_user_entries.int_id IN (
-									SELECT post_int_id FROM ttrss_tags WHERE
-										tag_name = ".$pdo->quote($keyword_value).")))");
-					} else {
-						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
-						if (!$not) array_push($search_words, $k);
+					/* This class supports days expressed as 2024-11-28, 2025/11/28,
+					 * 16-11-2025, 17 nov 2025, november 17 (current year), today,
+					 * yesterday, last monday, 2 days ago, etc. See "Relative Formats" of
+					 *   https://www.php.net/manual/en/datetime.formats.php
+					 */
+					try {
+						$query_date = trim(substr($k, 1));
+						// If $query_date is invalid, an exception is launched.
+						$dt = new DateTime($query_date, $tz);
+						// Obtain the first and last UTC seconds of the queried date.
+						// We only support days, not weeks/months ranges.
+						$ts_first_second = (int)$dt->setTime(0, 0, 0)->format('U');
+						$ts_last_second = (int)$dt->setTime(23, 59, 59)->format('U');
+						// Search this range. The database time is already in UTC.
+						$ts_first_second_sql = date('Y-m-d H:i:s', $ts_first_second);
+						$ts_last_second_sql = date('Y-m-d H:i:s', $ts_last_second);
+						$query_keywords[] = '( ' . $not . ' (updated >= ' . $pdo->quote($ts_first_second_sql) .' AND updated <= ' . $pdo->quote($ts_last_second_sql) . '))';
+						$valid_keyword_processed = true;
+					} catch (Exception) {
+						/**
+						 * Not valid. We could fall back to Full Text Search. Unfortunately,
+						 * in this case, there will be no warning, and _@something_
+						 * will never match a word.
+						 * So, to have an error message, we use the trick bellow. Remove
+						 * this trick once a full error processing will be implemented.
+						 */
+						$query_keywords[] = '( will generate an error )'; // Wrong SQL.
+						$search_words[] = sprintf(__('The date keyword "%s" was not recognized.'), htmlspecialchars($query_date));
+						$valid_keyword_processed = true; // Fake: to obtain the warning.
 					}
-					break;
-				case "unread":
-					if ($keyword_value) {
-						if ($keyword_value == "true")
-							array_push($query_keywords, "($not (unread = true))");
-						else
-							array_push($query_keywords, "($not (unread = false))");
+				}
+			}
 
-					} else {
-						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
-						if (!$not) array_push($search_words, $k);
+			// Third, process as a Full Text Search.
+			if (!$valid_keyword_processed) {
+
+				$k = trim($k);
+				$k_sql = $k;
+				if (preg_match('/\s+/', $k)) {
+					/**
+						* This is a list of consecutive words. Convert _"foo bar baz"_
+						* to _(foo <-> bar <-> baz)_ where "<->" means immediately
+						* followed by".
+						*/
+					$k_sql = '(' . preg_replace('/\s+/', ' <-> ', $k) . ')';
+				}
+
+				$search_query_leftover[] = $not ? '!'.$k_sql : $k_sql;
+
+				if (!$not) {
+					// Add the word (or the words with spaces) to highlight.
+					// Ignore logical operators alone.
+					if (!preg_match('/^[&|!()]$/', $k)) {
+						$search_words[] = $k;
 					}
-					break;
-				default:
-					// @{date} handling
-					if (str_starts_with($k, "@")) {
-						$user_tz_string = Prefs::get(Prefs::USER_TIMEZONE, $owner_uid);
-						$orig_ts = strtotime(substr($k, 1));
-						$k = date("Y-m-d", TimeHelper::convert_timestamp($orig_ts, $user_tz_string, 'UTC'));
-
-						array_push($query_keywords, "(SUBSTRING_FOR_DATE(updated,1,LENGTH(".$pdo->quote($k).")) $not = ".$pdo->quote($k).")");
-					} else {
-						// treat as leftover text
-
-						$k = mb_strtolower($k);
-
-						// A hacky way for phrases (e.g. "hello world") to get through PDO quoting.
-						// Term '"foo bar baz"' becomes '(foo <-> bar <-> baz)' ("<->" meaning "immediately followed by").
-						if (preg_match('/\s+/', $k))
-							$k = '(' . preg_replace('/\s+/', ' <-> ', $k) . ')';
-
-						array_push($search_query_leftover, $not ? "!$k" : $k);
-
-						if (!$not) array_push($search_words, $k);
-					}
+				}
 			}
 		}
 
 		if (count($search_query_leftover) > 0) {
 
-			// if there's no joiners consider this a "simple" search and
-			// concatenate everything with &, otherwise don't try to mess with tsquery syntax
-			if (preg_match("/[&|]/", implode(" " , $search_query_leftover))) {
-				$tsquery = $pdo->quote(implode(" ", $search_query_leftover));
+			/**
+			 * If there is no logical operator, consider this a "simple" search and
+			 * concatenate everything with &, otherwise don't try to mess with tsquery
+			 * syntax.
+			 * Known issue : Once the user is using at least one logical operator, he
+			 * has to ensure his query is well formatted. No warning will be displayed.
+			 */
+			$concatenated_leftovers = implode(' ', $search_query_leftover);
+			if (preg_match('/[&|!()]/', $concatenated_leftovers)) {
+				$tsquery = $pdo->quote($concatenated_leftovers);
 			} else {
-				$tsquery = $pdo->quote(implode(" & ", $search_query_leftover));
+				$tsquery = $pdo->quote(implode(' & ', $search_query_leftover));
 			}
 
 			$search_language = $pdo->quote(mb_strtolower($search_language ?: Prefs::get(Prefs::DEFAULT_SEARCH_LANGUAGE, $owner_uid, $profile)));
 
-			array_push($query_keywords,
-				"(tsvector_combined @@ to_tsquery($search_language, $tsquery))");
+			$query_keywords[] = "(tsvector_combined @@ to_tsquery($search_language, $tsquery))";
 		}
 
-		if (count($query_keywords) > 0)
-			$search_query_part = implode("AND ", $query_keywords);
-		else
-			$search_query_part = "false";
+		$search_query_part = count($query_keywords) > 0 ? implode(' AND ', $query_keywords) : 'false';
 
-		if (!empty($_REQUEST["debug"])) {
+		if (!empty($_REQUEST['debug'])) {
 			print "\n*** SEARCH_TO_SQL ***\n";
 			print "QUERY: $search_query_part\n";
 			print "WORDS: " . json_encode($search_words) . "\n";
 		}
 
-		return array($search_query_part, $search_words);
+		return [$search_query_part, $search_words];
 	}
 
 	/**
@@ -2347,7 +2348,7 @@ class Feeds extends Handler_Protected {
 
 		PluginHost::getInstance()->chain_hooks_callback(PluginHost::HOOK_HEADLINES_CUSTOM_SORT_OVERRIDE,
 			function ($result) use (&$query, &$skip_first_id) {
-				list ($query, $skip_first_id) = $result;
+				[$query, $skip_first_id] = $result;
 
 				// run until first hard match
 				return !empty($query);

@@ -5,11 +5,11 @@ class Bookmarklets extends Plugin {
 	private $host;
 
 	function about() {
-		return array(null,
+		return [null,
 			"Easy feed subscription and web page sharing using bookmarklets",
 			"fox",
 			false,
-			"https://tt-rss.org/wiki/ShareAnything");
+			"https://tt-rss.org/docs/Share-Anything.html"];
   }
 
 	function init($host) {
@@ -144,11 +144,7 @@ class Bookmarklets extends Plugin {
 					<?php
 				}
 
-				if ($rc['code'] <= 2) {
-					$feed_id = Feeds::_find_by_url($feed_url, $_SESSION["uid"]);
-				} else {
-					$feed_id = 0;
-				}
+				$feed_id = $rc['code'] <= 2 ? Feeds::_find_by_url($feed_url, $_SESSION['uid']) : 0;
 
 				if ($feed_id) {
 					?>
@@ -371,7 +367,7 @@ class Bookmarklets extends Plugin {
 			</label>
 
 			<?= \Controls\button_tag(\Controls\icon("help") . " " . __("More info..."), "",
-									["class" => 'alt-info', "onclick" => "window.open('https://tt-rss.org/wiki/ShareAnything')"]) ?>
+									["class" => 'alt-info', "onclick" => "window.open('https://tt-rss.org/docs/Share-Anything.html', '_blank', 'noreferrer')"]) ?>
 
 		</div>
 

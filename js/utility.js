@@ -5,10 +5,9 @@
 window.addEventListener("load", function() {
     const UtilityJS = {
         apply_night_mode: function (is_night, link) {
-            console.log("night mode changed to", is_night);
-
-            const light_theme = typeof __default_light_theme != 'undefined' ? __default_light_theme : 'themes/light.css';
-            const dark_theme = typeof __default_dark_theme != 'undefined' ? __default_dark_theme : 'themes/night.css';
+            /* global __default_dark_theme, __default_light_theme */
+            const light_theme = typeof __default_light_theme !== 'undefined' ? __default_light_theme : 'themes/light.css';
+            const dark_theme = typeof __default_dark_theme !== 'undefined' ? __default_dark_theme : 'themes/night.css';
 
             if (link) {
                 const css_override = is_night ? dark_theme : light_theme;
@@ -25,9 +24,9 @@ window.addEventListener("load", function() {
             link.id = "theme_auto_css";
 
             link.onload = function() {
-                document.querySelector("body").removeClassName("css_loading");
+                document.body.classList.remove('css_loading');
 
-                if (typeof UtilityApp != "undefined")
+                if (typeof UtilityApp !== 'undefined')
                     UtilityApp.init();
             };
 
@@ -35,11 +34,11 @@ window.addEventListener("load", function() {
                 mql.addEventListener("change", () => {
                     UtilityJS.apply_night_mode(mql.matches, link);
                 });
-            } catch (e) {
+            } catch {
                 console.warn("exception while trying to set MQL event listener");
             }
 
-            document.querySelector("head").appendChild(link);
+            document.head.prepend(link);
 
             UtilityJS.apply_night_mode(mql.matches, link);
         }

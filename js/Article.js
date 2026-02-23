@@ -1,7 +1,6 @@
 'use strict'
 
-/* eslint-disable no-new */
-/* global __, ngettext, App, Headlines, xhr, dojo, dijit, PluginHost, Notify, fox */
+/* global __, ngettext, App, Headlines, xhr, PluginHost, Notify, fox */
 
 const Article = {
 	_scroll_reset_timeout: false,
@@ -37,7 +36,7 @@ const Article = {
 
 			if (!isNaN(parseInt(score))) {
 				ids.forEach((id) => {
-					const row = App.byId(`RROW-${id}`);
+					const row = document.getElementById(`RROW-${id}`);
 
 					if (row) {
 						row.setAttribute("data-score", score);
@@ -47,13 +46,8 @@ const Article = {
 						pic.innerHTML = Article.getScorePic(score);
 						pic.setAttribute("title", score);
 
-						["score-low", "score-high", "score-half-low", "score-half-high", "score-neutral"]
-							.forEach(function(scl) {
-								if (row.hasClassName(scl))
-									row.removeClassName(scl);
-							});
-
-						row.addClassName(Article.getScoreClass(score));
+						row.classList.remove('score-low', 'score-high', 'score-half-low', 'score-half-high', 'score-neutral');
+						row.classList.add(Article.getScoreClass(score));
 					}
 				});
 			}
@@ -77,37 +71,26 @@ const Article = {
 				pic.innerHTML = Article.getScorePic(score);
 				pic.setAttribute("title", score);
 
-				["score-low", "score-high", "score-half-low", "score-half-high", "score-neutral"]
-					.forEach(function(scl) {
-						if (row.hasClassName(scl))
-							row.removeClassName(scl);
-					});
-
-				row.addClassName(Article.getScoreClass(score));
+				row.classList.remove('score-low', 'score-high', 'score-half-low', 'score-half-high', 'score-neutral');
+				row.classList.add(Article.getScoreClass(score));
 			}
 		}
 	},
-	popupOpenUrl: function(url) {
-		const w = window.open("");
-
-		w.opener = null;
-		w.location = url;
-	},
 	cdmToggleGridSpan: function(id) {
-		const row = App.byId(`RROW-${id}`);
+		const row = document.getElementById(`RROW-${id}`);
 
 		if (row) {
-			row.toggleClassName('grid-span-row');
+			row.classList.toggle('grid-span-row');
 
 			this.setActive(id);
 			this.cdmMoveToId(id);
 		}
 	},
 	cdmUnsetActive: function (event) {
-		const row = App.byId(`RROW-${Article.getActive()}`);
+		const row = document.getElementById(`RROW-${Article.getActive()}`);
 
 		if (row) {
-			row.removeClassName("active");
+			row.classList.remove('active');
 
 			if (event)
 				event.stopPropagation();
@@ -122,13 +105,17 @@ const Article = {
 
 		Article.setActive(0);
 	},
-	displayUrl: function (id) {
+	copyUrl: async function (id) {
 		const hl = Headlines.objectById(id);
 
-		if (hl?.link)
-			prompt(__("Article URL:"), hl.link);
-		else
-			alert(__("No URL could be displayed for this article."));
+		if (hl?.link) {
+			try {
+				await navigator.clipboard.writeText(hl.link);
+				Notify.info(__('Copied to clipboard.'));
+			} catch {
+				prompt(__('Article URL:'), hl.link);
+			}
+		}
 	},
 	openInNewWindow: function (id) {
 		/* global __csrf_token */
@@ -137,6 +124,17 @@ const Article = {
 
 		Headlines.toggleUnread(id, 0);
 	},
+    selectionOpenInNewWindow: function () {
+        const ids = Headlines.getSelected();
+
+        if (ids.length > 0) {
+            ids.forEach((id) => {
+		        Article.openInNewWindow(id);
+            });
+        } else {
+            alert(__("No articles selected."));
+        }
+    },
 	renderNote: function (id, note) {
 		return `<div class="article-note" data-note-for="${id}" style="display : ${note ? "" : "none"}">
 				${App.FormFields.icon('note')} <div onclick class='body'>${note ? App.escapeHtml(note) : ""}</div>
@@ -145,7 +143,7 @@ const Article = {
 	renderTags: function (id, tags) {
 		return `<span class="tags" title="${tags.join(", ")}" data-tags-for="${id}">
 			${tags.length > 0 ? tags.map((tag) => `
-				<a href="#" onclick="Feeds.open({feed: '${tag.trim()}'})" class="tag">${tag}</a>`
+				<a href="#" onclick='Feeds.open({feed: ${JSON.stringify(tag.trim())}})' class="tag">${tag}</a>`
 			).join(", ") : `${__("no tags")}`}</span>`;
 	},
 	renderLabels: function(id, labels) {
@@ -153,7 +151,7 @@ const Article = {
 			${labels.map((label) => `
 				<a href="#" class="label" data-label-id="${label[0]}"
 					style="color : ${label[2]}; background-color : ${label[3]}"
-					onclick="event.stopPropagation(); Feeds.open({feed:'${label[0]}'})">
+					onclick="event.stopPropagation(); Feeds.open({feed:${label[0]}})">
 						${App.escapeHtml(label[1])}
 				</a>`
 			).join("")}
@@ -166,7 +164,7 @@ const Article = {
 					`<div class='attachments-inline'>
 						${enclosures.entries.map((enc) => {
 							if (!enclosures.inline_text_only) {
-								if (enc.content_type && enc.content_type.indexOf("image/") != -1) {
+								if (enc.content_type && enc.content_type.indexOf("image/") !== -1) {
 									return `<p>
 										<img loading="lazy"
 											width="${enc.width ? enc.width : ''}"
@@ -174,7 +172,7 @@ const Article = {
 											src="${App.escapeHtml(enc.content_url)}"
 											title="${App.escapeHtml(enc.title ? enc.title : enc.content_url)}"/>
 									</p>`
-								} else if (enc.content_type && enc.content_type.indexOf("audio/") != -1 && App.audioCanPlay(enc.content_type)) {
+								} else if (enc.content_type && enc.content_type.indexOf("audio/") !== -1 && App.audioCanPlay(enc.content_type)) {
 									return `<p class='inline-player' title="${App.escapeHtml(enc.content_url)}">
 										<audio preload="none" controls="controls">
 											<source type="${App.escapeHtml(enc.content_type)}" src="${App.escapeHtml(enc.content_url)}"/>
@@ -202,7 +200,7 @@ const Article = {
 					<span>${__('Attachments')}</span>
 					<div dojoType="dijit.Menu" style="display: none">
 					${enclosures.entries.map((enc) => `
-							<div onclick='Article.popupOpenUrl("${App.escapeHtml(enc.content_url)}")'
+							<div onclick='App.openUrl(${JSON.stringify(enc.content_url)})'
 								title="${App.escapeHtml(enc.title ? enc.title : enc.content_url)}" dojoType="dijit.MenuItem">
 									${enc.title ? enc.title : enc.filename}
 							</div>
@@ -221,7 +219,7 @@ const Article = {
 
 		try {
 			c.domNode.scrollTop = 0;
-		} catch (e) {
+		} catch {
 		}
 
 		c.attr('content', article);
@@ -231,7 +229,7 @@ const Article = {
 
 		try {
 			c.focus();
-		} catch (e) {
+		} catch {
 		}
 	},
 	formatComments: function(hl) {
@@ -244,15 +242,13 @@ const Article = {
 				comments_msg = hl.num_comments + " " + ngettext("comment", "comments", hl.num_comments)
 			}
 
-			comments = `<a target="_blank" rel="noopener noreferrer" href="${App.escapeHtml(hl.comments ? hl.comments : hl.link)}">(${comments_msg})</a>`;
+			comments = `<a target="_blank" rel="noopener noreferrer" href="${App.escapeHtml(App.sanitizeUrl(hl.comments ? hl.comments : hl.link))}">(${comments_msg})</a>`;
 		}
 
 		return comments;
 	},
 	unpack: function(row) {
-		if (row.getAttribute("data-is-packed") == "1") {
-			console.log("unpacking: " + row.id);
-
+		if (row.getAttribute("data-is-packed") === "1") {
 			const container = row.querySelector(".content-inner");
 
 			container.innerHTML = row.getAttribute("data-content").trim() + row.getAttribute("data-rendered-enclosures").trim();
@@ -260,11 +256,11 @@ const Article = {
 			dojo.parser.parse(container);
 
 			// blank content element might screw up onclick selection and keyboard moving
-			if (container.textContent.length == 0)
+			if (container.textContent.length === 0)
 				container.innerHTML += "&nbsp;";
 
 			// in expandable mode, save content for later, so that we can pack unfocused rows back
-			if (App.isCombinedMode() && App.byId("main").hasClassName("expandable"))
+			if (App.isCombinedMode() && document.getElementById('main').classList.contains('expandable'))
 				row.setAttribute("data-content-original", row.getAttribute("data-content"));
 
 			row.setAttribute("data-is-packed", "0");
@@ -273,8 +269,7 @@ const Article = {
 		}
 	},
 	pack: function(row) {
-		if (row.getAttribute("data-is-packed") != "1") {
-			console.log("packing", row.id);
+		if (row.getAttribute("data-is-packed") !== "1") {
 			row.setAttribute("data-is-packed", "1");
 
 			const content_inner = row.querySelector(".content-inner");
@@ -302,7 +297,7 @@ const Article = {
 						<div class="row">
 							<div class="title"><a target="_blank" rel="noopener noreferrer"
 								title="${App.escapeHtml(hl.title)}"
-								href="${App.escapeHtml(hl.link)}">${hl.title}</a></div>
+								href="${App.escapeHtml(App.sanitizeUrl(hl.link))}">${hl.title}</a></div>
 							<div class="date">${hl.updated_long}</div>
 						</div>
 						<div class="row">
@@ -317,7 +312,7 @@ const Article = {
 						</div>
 					</div>
 					${Article.renderNote(hl.id, hl.note)}
-					<div class="content" lang="${hl.lang ? hl.lang : 'en'}">
+					<div class="content" lang="${hl.lang ? App.escapeHtml(hl.lang) : 'en'}">
 						${hl.content}
 						${Article.renderEnclosures(hl.enclosures)}
 					</div>
@@ -331,7 +326,7 @@ const Article = {
 		return false;
 	},
 	autocompleteInject: function(elem, targetId) {
-		const target = App.byId(targetId);
+		const target = document.getElementById(targetId);
 
 		if (!target)
 			return;
@@ -394,15 +389,15 @@ const Article = {
 
 			xhr.json("backend.php", {op: "Article", method: "printArticleTags", id: id}, (reply) => {
 
-				dijit.getEnclosingWidget(App.byId("tags_str"))
+				dijit.getEnclosingWidget(document.getElementById("tags_str"))
 					.attr('value', reply.tags.join(", "))
 					.attr('disabled', false);
 
-				App.byId('tags_str').onkeyup = (e) => {
+				document.getElementById('tags_str').onkeyup = (e) => {
 					const last_tag = e.target.value.split(',').pop().trim();
 
 					xhr.json("backend.php", {op: 'Article', method: 'completeTags', search: last_tag}, (data) => {
-						App.byId("tags_choices").innerHTML = `${data.map((tag) =>
+						document.getElementById("tags_choices").innerHTML = `${data.map((tag) =>
 							`<a href="#" onclick="Article.autocompleteInject(this, 'tags_str')">${tag}</a>` )
 								.join(', ')}`
 					});
@@ -416,8 +411,8 @@ const Article = {
 	cdmMoveToId: function (id, params = {}) {
 		const force_to_top = params.force_to_top || false;
 
-		const ctr = App.byId("headlines-frame");
-		const row = App.byId(`RROW-${id}`);
+		const ctr = document.getElementById("headlines-frame");
+		const row = document.getElementById(`RROW-${id}`);
 
 		if (ctr && row) {
 			const grid_gap = parseInt(window.getComputedStyle(ctr).gridGap) || 0;
@@ -428,41 +423,35 @@ const Article = {
 		}
 	},
 	setActive: function (id) {
-		if (id != Article.getActive()) {
-			console.log("setActive", id, "was", Article.getActive());
-
-			App.findAll("div[id*=RROW][class*=active]").forEach((row) => {
-				row.removeClassName("active");
+		if (id !== Article.getActive()) {
+			document.querySelectorAll('div[id*=RROW][class*=active]').forEach((row) => {
+				row.classList.remove('active');
 
 				if (App.isCombinedMode() && !App.getInitParam("cdm_expanded"))
 					Article.pack(row);
 			});
 
-			const row = App.byId(`RROW-${id}`);
+			const row = document.getElementById(`RROW-${id}`);
 
 			if (row) {
 				Article.unpack(row);
 
-				row.removeClassName("Unread");
-				row.addClassName("active");
+				row.classList.remove('Unread');
+				row.classList.add('active');
 
-				PluginHost.run(PluginHost.HOOK_ARTICLE_SET_ACTIVE, row.getAttribute("data-article-id"));
+				PluginHost.run(PluginHost.HOOK_ARTICLE_SET_ACTIVE, parseInt(row.getAttribute('data-article-id')));
 			}
 		}
 	},
 	getActive: function () {
 		const row = document.querySelector("#headlines-frame > div[id*=RROW][class*=active]");
-
-		if (row)
-			return row.getAttribute("data-article-id");
-		else
-			return 0;
+		return row ? parseInt(row.getAttribute('data-article-id')) : 0;
 	},
 	scrollByPages: function (page_offset) {
-		App.Scrollable.scrollByPages(App.byId("content-insert"), page_offset);
+		App.Scrollable.scrollByPages(document.getElementById("content-insert"), page_offset);
 	},
 	scroll: function (offset) {
-		App.Scrollable.scroll(App.byId("content-insert"), offset);
+		App.Scrollable.scroll(document.getElementById("content-insert"), offset);
 	},
 	mouseIn: function (id) {
 		this.post_under_pointer = id;
@@ -474,3 +463,6 @@ const Article = {
 		return this.post_under_pointer;
 	}
 }
+
+// Expose to global scope for Dojo widget onclick handlers (needed since Dojo 1.17.3)
+window.Article = Article;
